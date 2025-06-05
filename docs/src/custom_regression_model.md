@@ -179,7 +179,7 @@ This example demonstrates a more sophisticated implementation with numerical opt
 ### Step 1: Define the Advanced Model Structure
 
 ```julia
-using Optim, ForwardDiff, NamedArrays, HypothesisTests
+using Optim, ForwardDiff, NamedArrays, HypothesisTests, RegressionTables, StatsAPI, NLSolversBase, LinearAlgebra
 
 n = 40                              # Number of observations
 nvar = 2                            # Number of variables
@@ -268,7 +268,7 @@ x = [ 1.0   0.156651				# X matrix of explanatory variables plus constant
 
 y = x * β + ε;                      # Generate Data
 
-struct CustomModel <: RegressionModel
+struct CustomModel <: StatsAPI.RegressionModel
     coef::Vector{Float64}              # Parameter estimates
     vcov::Matrix{Float64}              # Variance-covariance matrix
     dof_residual::Int                  # Residual degrees of freedom
@@ -297,7 +297,7 @@ end
 
 # Constructor for the custom statistic
 MyStatistic(m::CustomModel) = MyStatistic(m.BS)
-MyStatistic(m::RegressionModel) = MyStatistic(nothing)  # Default for other models
+MyStatistic(m::StatsAPI.RegressionModel) = MyStatistic(nothing)  # Default for other models
 
 # Label for display in tables
 RegressionTables.label(render::AbstractRenderType, x::Type{MyStatistic}) = "Normality"
