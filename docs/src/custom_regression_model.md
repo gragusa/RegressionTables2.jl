@@ -136,6 +136,158 @@ R2                 0.209        0.097        0.034
 
 ## Example 2
 
+### My suggestions
+
+[quote="junder873, post:8, topic:113477, full:true"]
+### islinear and `RegressionType`
+
+`islinear` is part of the StatsAPI, which is why it is implemented. You can actually avoid it by instead defining `RegressionType` for your type:
+
+```
+RegressionTables.RegressionType(rr::MyStatsModel) = RegressionTables.RegressionType("My type")
+```
+
+The reason you are seeing the current behavior is line 142 of [RegressionTables.jl/src/regressionResults.jl at master · jmboehm/RegressionTables.jl (github.com)](https://github.com/jmboehm/RegressionTables.jl/blob/master/src/regressionResults.jl):
+
+```
+RegressionType(x::RegressionModel) = islinear(x) ? RegressionType(Normal()) : RegressionType("NL")
+```
+
+So you would basically override that. You can also suppress that line of the result by setting `regtable(...; print_estimator=false` or for your entire session with `RegressionTables.default_print_estimator(render::AbstractRenderType, rrs) = false`.
+
+### Regression Summary Statistics
+
+In general, it might be worthwhile to look through the extensions on the RegressionTables package. Each of those is written to modify the default table results. For example, if you do not want any regression statistics for your data, you can run:
+
+```
+RegressionTables.default_regression_statistics(rr::MyStatsModel) = Symbol[]
+```
+
+However, note that if you are running multiple types of regressions in one table (e.g., GLM + MyStatsModel), then the default GLM statistics will force the printing of those statistics anyway.
+
+Another alternative is you can remove (or change the order) of sections as you want by changing the `section_order` argument: `regtable(...; section_order=...)` or the default:
+
+```
+RegressionTables.default_section_order(render::AbstractRenderType) = [:groups, :depvar, :number_regressions, :break, :coef, :break, :fe, :break, :randomeffects, :break, :clusters, :break, :regtype, :break, :controls, :break, :stats, :extralines]
+```
+
+So if you do not want the RegressionType or statistics, remove `:regtype` and `:stats` from that list.
+
+### A Suggestion Based on What I think you are doing
+
+The underlying design of RegressionTables is that `extralines` is more of a last resort. So, in addition to changing the `RegressionType` and `default_regression_statistics` to fit your needs, there are two other ways to implement custom statistics: 1) define other statistics and 2) use `other_stats`
+
+Just to modify what I did before a little, add to the struct a `special_value`:
+
+```
+    formula_schema::FormulaTerm
+    special_value::String
+end
+```
+
+and to the function something to that:
+
+```
+function StatsAPI.fit(::Type{MyStatsModel}, f::FormulaTerm, df::DataFrame; special_value::String="ABC")
+...
+    MyStatsModel(β, vcov, dof, dof_residual, n, rss, tss, coefnames_exo, response_name, f, f_schema, special_value)
+end
+```
+
+And just to give an example of defining your own `RegressionType`:
+
+```
+RegressionTables.RegressionType(rr::MyStatsModel) = RegressionType("MyModel")
+```
+
+#### Defining New Statistics
+
+It is possible to define new RegressionStatistics in RegressionTables, these will appear alongside other statistics:
+
+```
+struct MyStatistic <: RegressionTables.AbstractRegressionStatistic
+    val::Union{String, Nothing}
+end
+MyStatistic(rr::RegressionModel) = MyStatistic(nothing)
+MyStatistic(rr::MyStatsModel) = MyStatistic(rr.special_value)
+RegressionTables.label(render::AbstractRenderType, x::Type{MyStatistic}) = "My Statistic"
+RegressionTables.default_regression_statistics(rr::MyStatsModel) = [Nobs, MyStatistic]
+
+using FixedEffectModels
+rr1 = StatsAPI.fit(MyStatsModel, @formula(Sales ~ 1 + Price + NDI), df)
+rr2 = StatsAPI.fit(MyStatsModel, @formula(Sales ~ 1 + Price), df; special_value="123")
+rr3 = StatsAPI.fit(MyStatsModel, @formula(Sales ~ 1 + NDI), df; special_value="ABC")
+rr4 = reg(df, @formula(Sales ~ Price + NDI))
+tab = regtable(rr1, rr2, rr3, rr4)
+
+----------------------------------------------------------------
+                                     Sales
+               -------------------------------------------------
+                      (1)          (2)          (3)          (4)
+----------------------------------------------------------------
+(Intercept)    138.480***   139.734***   132.981***   138.480***
+                  (1.427)      (1.521)      (1.538)      (1.427)
+Price           -0.938***    -0.230***                 -0.938***
+                  (0.054)      (0.019)                   (0.054)
+NDI              0.007***                 -0.001***     0.007***
+                  (0.000)                   (0.000)      (0.000)
+----------------------------------------------------------------
+Estimator         MyModel      MyModel      MyModel          OLS
+----------------------------------------------------------------
+N                   1,380        1,380        1,380        1,380
+My Statistic          ABC          123          ABC
+R2                  0.209        0.097        0.034        0.209
+----------------------------------------------------------------
+```
+
+#### Using `other_stats`
+
+The `other_stats` function is useful for defining a new section. It is how [FixedEffectModels.jl](https://juliaregistries.github.io/General/packages/redirect_to_repo/FixedEffectModels) and [MixedModels.jl](https://juliaregistries.github.io/General/packages/redirect_to_repo/MixedModels) implement necessary pieces. You need to create an `other_stats` function to fit your needs and then add whatever symbol you created to `default_section_order`:
+
+```
+function RegressionTables.other_stats(rr::MyStatsModel, s::Symbol)
+    if s == :my_stat
+        return ["Some Descriptor" => MyStatistic(rr)]
+    else
+        return nothing
+    end
+end
+RegressionTables.default_section_order(render::AbstractRenderType) = [:groups, :depvar, :number_regressions, :break, :coef, :break, :fe, :break, :randomeffects, :break, :clusters, :break, :regtype, :break, :controls, :break, :stats, :break, :my_stat, :extralines]
+
+rr1 = StatsAPI.fit(MyStatsModel, @formula(Sales ~ 1 + Price + NDI), df)
+rr2 = StatsAPI.fit(MyStatsModel, @formula(Sales ~ 1 + Price), df; special_value="123")
+rr3 = StatsAPI.fit(MyStatsModel, @formula(Sales ~ 1 + NDI), df; special_value="ABC")
+rr4 = reg(df, @formula(Sales ~ Price + NDI))
+tab = regtable(rr1, rr2, rr3, rr4)
+
+-------------------------------------------------------------------
+                                        Sales
+                  -------------------------------------------------
+                         (1)          (2)          (3)          (4)
+-------------------------------------------------------------------
+(Intercept)       138.480***   139.734***   132.981***   138.480***
+                     (1.427)      (1.521)      (1.538)      (1.427)
+Price              -0.938***    -0.230***                 -0.938***
+                     (0.054)      (0.019)                   (0.054)
+NDI                 0.007***                 -0.001***     0.007***
+                     (0.000)                   (0.000)      (0.000)
+-------------------------------------------------------------------
+Estimator            MyModel      MyModel      MyModel          OLS
+-------------------------------------------------------------------
+N                      1,380        1,380        1,380        1,380
+R2                     0.209        0.097        0.034        0.209
+-------------------------------------------------------------------
+Some Descriptor          ABC          123          ABC
+-------------------------------------------------------------------
+```
+
+Conveniently, `other_stats` can be used to create as many new sections as you want, so if you need those broken out, that is possible.
+[/quote]
+
+
+
+### Result
+
 ```julia
 using Optim, NLSolversBase
 using ForwardDiff
