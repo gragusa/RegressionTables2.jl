@@ -21,7 +21,7 @@ Documenter.makedocs(
         "API" => "api.md",
         "Customization and Defaults" => "customization.md",
         "Function and Type Reference" => "function_reference.md",
-        "Custom Model Example" => "custom_model.md",
+        "Implementing a Custom Regression Model" => "custom_regression_model.md",
     ]
 )
 
