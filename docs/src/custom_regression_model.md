@@ -1,5 +1,7 @@
 # Implementing Custom Regression Models
 
+RegressionTables.jl is designed to be used with any custom model you create. The easiest way for this to work is to copy the [StatsAPI.jl](https://github.com/JuliaStats/StatsAPI.jl) API, if that API is fully implemented then RegressionTables.jl will work out of the box.
+
 This guide demonstrates how to create custom regression models that work seamlessly with RegressionTables.jl. When you have a regression model type that isn't natively supported, you can extend the package by implementing the required interface methods.
 
 ## Overview
