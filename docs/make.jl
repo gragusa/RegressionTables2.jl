@@ -1,4 +1,4 @@
-using RegressionTables, RDatasets, GLM, FixedEffectModels
+using RegressionTables, RDatasets, GLM, FixedEffectModels, StatsAPI
 using Documenter
 
 DocMeta.setdocmeta!(
