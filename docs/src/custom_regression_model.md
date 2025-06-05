@@ -16,16 +16,28 @@ To make a custom model work with RegressionTables.jl, you need to implement seve
 The core functions you need to implement are:
 
 ```julia
-# Essential StatsAPI methods
+# Essential StatsAPI methods (minimum required)
 StatsAPI.coef(model::YourModelType)           # Coefficient estimates
-StatsAPI.coefnames(model::YourModelType)      # Variable names
-StatsAPI.nobs(model::YourModelType)           # Number of observations
-StatsAPI.vcov(model::YourModelType)           # Variance-covariance matrix (optional)
 
-# RegressionTables-specific methods (if needed)
-RegressionTables._coefnames(model::YourModelType)    # Processed coefficient names
-RegressionTables._responsename(model::YourModelType) # Processed response name
-RegressionTables.RegressionType(model::YourModelType) # Model type for display
+# For coefficient names, implement ONE of:
+StatsAPI.coefnames(model::YourModelType)      # Variable names
+# OR
+StatsModels.formula(model::YourModelType)     # Formula (if using formula interface)
+
+# For response variable name, implement ONE of:
+StatsAPI.responsename(model::YourModelType)   # Response variable name
+# OR  
+StatsModels.formula(model::YourModelType)     # Formula (if using formula interface)
+
+# For standard errors, implement ONE of:
+StatsAPI.stderror(model::YourModelType)       # Standard errors directly
+# OR
+StatsAPI.vcov(model::YourModelType)           # Variance-covariance matrix (default implementation in StatsAPI)
+
+# For model type identification, implement ONE of:
+StatsAPI.islinear(model::YourModelType)       # Returns true/false for linear models
+# OR
+RegressionTables.RegressionType(model::YourModelType) # Custom model type display
 ```
 
 ## Example 1: Basic Implementation with Formula Interface
@@ -60,33 +72,39 @@ end
 ### Step 2: Implement the StatsAPI Interface
 
 ```julia
-# Core coefficient and model information
+# Methods to match the StatsAPI interface
 StatsAPI.coef(m::MyStatsModel) = m.coef
-StatsAPI.coefnames(m::MyStatsModel) = m.coefnames
-StatsAPI.vcov(m::MyStatsModel) = m.vcov
-StatsAPI.nobs(m::MyStatsModel) = m.nobs
 
-# Degrees of freedom
+# Coefficient and response names (using stored values)
+StatsAPI.coefnames(m::MyStatsModel) = m.coefnames
+StatsAPI.responsename(m::MyStatsModel) = m.responsename
+
+# Standard errors (via variance-covariance matrix)
+StatsAPI.vcov(m::MyStatsModel) = m.vcov
+
+# Model type identification
+StatsAPI.islinear(m::MyStatsModel) = true
+
+# Additional useful methods for regression statistics
+StatsAPI.nobs(m::MyStatsModel) = m.nobs
 StatsAPI.dof(m::MyStatsModel) = m.dof
 StatsAPI.dof_residual(m::MyStatsModel) = m.dof_residual
-
-# Sum of squares and model fit
 StatsAPI.rss(m::MyStatsModel) = m.rss
 StatsAPI.nulldeviance(m::MyStatsModel) = m.tss
 StatsAPI.deviance(m::MyStatsModel) = StatsAPI.rss(m)
 StatsAPI.mss(m::MyStatsModel) = nulldeviance(m) - StatsAPI.rss(m)
-
-# Model characteristics
-StatsAPI.islinear(m::MyStatsModel) = true
 StatsAPI.r2(m::MyStatsModel) = StatsAPI.r2(m, :devianceratio)
 
-# Formula support
+# Formula support (enables formula-based fitting), formula takes
+# precedence over `coefnames` and `reponsename`
 StatsModels.formula(m::MyStatsModel) = m.formula_schema
 ```
 
 **Key Points:**
-- These methods tell RegressionTables how to extract information from your model
-- `islinear(true)` indicates this is a linear model (which is called if no `RegressionType` is set)
+- `coef()` is the absolute minimum requirement
+- `coefnames()` and `responsename()` provide variable names for display
+- `vcov()` enables automatic standard error calculation
+- `islinear(true)` indicates this is a linear model
 - R² calculation uses the deviance ratio method (standard for linear models)
 
 ### Step 3: Implement the Fitting Function
@@ -293,13 +311,17 @@ RegressionTables.label(render::AbstractRenderType, x::Type{MyStatistic}) = "Norm
 ### Step 3: Implement Core Interface Methods
 
 ```julia
-# Basic model information that uses the StatsAPI standard
+# Essential StatsAPI methods (minimum required)
 StatsAPI.coef(m::CustomModel) = m.coef
+
+# Coefficient and response names
 StatsAPI.coefnames(m::CustomModel) = m.coefnames
 StatsAPI.responsename(m::CustomModel) = m.responsename
-StatsAPI.nobs(m::CustomModel) = m.nobs
-StatsAPI.dof_residual(m::CustomModel) = m.dof_residual
+
+# Standard errors (via variance-covariance matrix)
 StatsAPI.vcov(m::CustomModel) = m.vcov
+StatsAPI.dof_residual(m::CustomModel) = m.dof_residual
+StatsAPI.nobs(m::CustomModel) = m.nobs
 
 # Model fit statistics
 StatsAPI.loglikelihood(m::CustomModel) = m.LogLikelihood
@@ -308,7 +330,7 @@ StatsAPI.bic(m::CustomModel) = m.BIC
 # Confidence intervals
 StatsAPI.confint(m::CustomModel; level::Real = 0.95) = m.civec
 
-# instead of defining `StatsAPI.islinear`, simply defining a `RegressionType` works
+# Model type identification (using RegressionType instead of islinear)
 RegressionTables.RegressionType(m::CustomModel) = RegressionTables.RegressionType("My type")
 
 # Define default statistics for this model type
@@ -319,8 +341,9 @@ RegressionTables.default_symbol(render::AbstractRenderType) = ""
 ```
 
 **Key Points:**
-- `RegressionType` customizes how the model is identified in tables
-- `default_regression_statistics` defines which statistics appear by default
+- Implements the same essential methods as Example 1
+- Uses `RegressionType()` instead of `islinear()` for custom model identification
+- `default_regression_statistics()` defines which statistics appear by default
 - Can customize display elements like significance stars
 
 ### Step 4: Custom Confidence Interval Formatting
@@ -439,3 +462,38 @@ Log Likelihood          -20.722
 BIC                      48.823
 -------------------------------
 ```
+
+## Implementation Guidelines
+
+### 1. Choose Your Approach
+- **Example 1** is ideal for linear models with standard statistics
+- **Example 2** is better for complex models requiring numerical methods
+
+### 2. Essential Methods (Minimum Requirements)
+Always implement these core methods:
+- `StatsAPI.coef()` - coefficient estimates
+- One of: `StatsAPI.coefnames()` OR `StatsModels.formula()`
+- One of: `StatsAPI.responsename()` OR `StatsModels.formula()`
+- One of: `StatsAPI.stderror()` OR `StatsAPI.vcov()`
+- One of: `StatsAPI.islinear()` OR `RegressionTables.RegressionType()`
+
+### 3. Optional Enhancements
+- `StatsAPI.confint()` - enables confidence interval display
+- Custom statistics via `AbstractRegressionStatistic`
+- Custom formatting via `Base.repr()` methods
+- Model-specific defaults via `default_regression_statistics()`
+
+### 4. Testing Your Implementation
+```julia
+# Verify basic functionality
+model = fit(YourModel, data...)
+@assert length(coef(model)) == length(coefnames(model))
+
+# Test table generation
+table = regtable(model)
+```
+
+### 5. Advanced Customization
+- Override `default_regression_statistics()` to change default statistics
+- Use `RegressionType()` to customize model identification
+- Implement `other_stats()` for completely custom table sections
