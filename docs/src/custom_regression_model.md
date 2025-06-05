@@ -1,3 +1,141 @@
+
+# Implementing Custom Regression Models
+
+## Example 1
+
+I am not sure I fully understand what you are asking for, it might help to see some of your code to understand what it currently looks like so it can fit into the `RegressionModel` type.
+
+I think what you are asking for is a basic regression model. So first, you need to create a type for your regression model:
+```julia
+using StatsAPI, StatsModels, RegressionTables, RDatasets, Statistics
+struct MyStatsModel <: RegressionModel
+    coef::Vector{Float64}
+    vcov::Matrix{Float64}
+    dof::Int
+    dof_residual::Int
+    nobs::Int
+    rss::Float64
+    tss::Float64
+    coefnames::Vector{String}
+    responsename::String
+    formula::FormulaTerm
+    formula_schema::FormulaTerm
+end
+```
+
+For your specific use case, there might be other things that you need to add to that.
+
+You then need to match the StatsAPI elements to your new type:
+```julia
+StatsAPI.coef(m::MyStatsModel) = m.coef
+StatsAPI.coefnames(m::MyStatsModel) = m.coefnames
+StatsAPI.vcov(m::MyStatsModel) = m.vcov
+StatsAPI.dof(m::MyStatsModel) = m.dof
+StatsAPI.dof_residual(m::MyStatsModel) = m.dof_residual
+StatsAPI.nobs(m::MyStatsModel) = m.nobs
+StatsAPI.rss(m::MyStatsModel) = m.rss
+StatsAPI.nulldeviance(m::MyStatsModel) = m.tss
+StatsAPI.islinear(m::MyStatsModel) = true
+StatsAPI.deviance(m::MyStatsModel) = StatsAPI.rss(m)
+StatsAPI.mss(m::MyStatsModel) = nulldeviance(m) - StatsAPI.rss(m)
+StatsModels.formula(m::MyStatsModel) = m.formula_schema
+StatsModels.formula(m::MyStatsModel) = m.formula_schema
+
+#edit add:
+StatsAPI.r2(m::MyStatsModel) = StatsAPI.r2(m, :devianceratio)
+```
+(I find looking at [FixedEffectModels.jl/src/FixedEffectModel.jl at master · FixedEffects/FixedEffectModels.jl (github.com)](https://github.com/FixedEffects/FixedEffectModels.jl/blob/master/src/FixedEffectModel.jl) a reasonably straightforward set of how to implement this).
+
+Then you would need a function that creates that type:
+```julia
+function StatsAPI.fit(::Type{MyStatsModel}, f::FormulaTerm, df::DataFrame)
+    df = dropmissing(df)
+    f_schema = apply_schema(f, schema(f, df))
+    y, X = modelcols(f_schema, df)
+    response_name, coefnames_exo = coefnames(f_schema)
+    n, p = size(X)
+    β = X \ y
+    ŷ = X * β
+    res = y - ŷ
+    rss = sum(abs2, res)
+    tss = sum(abs2, y .- mean(y))
+    dof = p
+    dof_residual = n - p
+    vcov = inv(X'X) * rss / dof_residual
+    MyStatsModel(β, vcov, dof, dof_residual, n, rss, tss, coefnames_exo, response_name, f, f_schema)
+end
+```
+
+This will work with RegressionTables
+```julia
+rr1 = StatsAPI.fit(MyStatsModel, @formula(Sales ~ 1 + Price + NDI), df)
+rr2 = StatsAPI.fit(MyStatsModel, @formula(Sales ~ 1 + Price), df)
+rr3 = StatsAPI.fit(MyStatsModel, @formula(Sales ~ 1 + NDI), df)
+regtable(rr1, rr2, rr3)
+--------------------------------------------------
+                              Sales
+              ------------------------------------
+                     (1)          (2)          (3)
+--------------------------------------------------
+(Intercept)   138.480***   139.734***   132.981***
+                 (1.427)      (1.521)      (1.538)
+Price          -0.938***    -0.230***
+                 (0.054)      (0.019)
+NDI             0.007***                 -0.001***
+                 (0.000)                   (0.000)
+--------------------------------------------------
+N                  1,380        1,380        1,380
+R2                 0.209        0.097        0.034
+--------------------------------------------------
+```
+```
+(I find looking at [FixedEffectModels.jl/src/FixedEffectModel.jl at master · FixedEffects/FixedEffectModels.jl (github.com)](https://github.com/FixedEffects/FixedEffectModels.jl/blob/master/src/FixedEffectModel.jl) a reasonably straightforward set of how to implement this).
+
+Then you would need a function that creates that type:
+```julia
+function StatsAPI.fit(::Type{MyStatsModel}, f::FormulaTerm, df::DataFrame)
+    df = dropmissing(df)
+    f_schema = apply_schema(f, schema(f, df))
+    y, X = modelcols(f_schema, df)
+    response_name, coefnames_exo = coefnames(f_schema)
+    n, p = size(X)
+    β = X \ y
+    ŷ = X * β
+    res = y - ŷ
+    rss = sum(abs2, res)
+    tss = sum(abs2, y .- mean(y))
+    dof = p
+    dof_residual = n - p
+    vcov = inv(X'X) * rss / dof_residual
+    MyStatsModel(β, vcov, dof, dof_residual, n, rss, tss, coefnames_exo, response_name, f, f_schema)
+end
+```
+
+This will work with RegressionTables
+```julia
+rr1 = StatsAPI.fit(MyStatsModel, @formula(Sales ~ 1 + Price + NDI), df)
+rr2 = StatsAPI.fit(MyStatsModel, @formula(Sales ~ 1 + Price), df)
+rr3 = StatsAPI.fit(MyStatsModel, @formula(Sales ~ 1 + NDI), df)
+regtable(rr1, rr2, rr3)
+--------------------------------------------------
+                              Sales
+              ------------------------------------
+                     (1)          (2)          (3)
+--------------------------------------------------
+(Intercept)   138.480***   139.734***   132.981***
+                 (1.427)      (1.521)      (1.538)
+Price          -0.938***    -0.230***
+                 (0.054)      (0.019)
+NDI             0.007***                 -0.001***
+                 (0.000)                   (0.000)
+--------------------------------------------------
+N                  1,380        1,380        1,380
+R2                 0.209        0.097        0.034
+--------------------------------------------------
+```
+
+## Example 2
+
 ```julia
 using Optim, NLSolversBase
 using ForwardDiff
@@ -94,58 +232,38 @@ y = x * β + ε;                      # Generate Data
 
 
 
-module ExampleModule
-using StatsAPI, StatsModels, RegressionTables, Statistics
-export CustomModel, MyStatistic
-
 struct CustomModel <: RegressionModel
     coef::Vector{Float64}
     vcov::Matrix{Float64}
     dof_residual::Int
-    #islinear::Bool
     nobs::Int
-    #rss::Float64
-    #tss::Float64
     coefnames::Vector{String}
     responsename::String
     LogLikelihood::Float64
     BIC::Float64
     BS::Float64
-    #Tuple{Float64,Float64}
-    #civec::Vector{Tuple{Union{Nothing,Float64},Union{Nothing,Float64}}}
     civec::Matrix{Float64}
-    #formula::FormulaTerm
-    #formula_schema::FormulaTerm
 end
 
 struct MyStatistic <: RegressionTables.AbstractRegressionStatistic
     val::Union{Float64, Nothing}
 end
 
-end
 
-using .ExampleModule
+StatsAPI.coef(m::CustomModel) = m.coef
+RegressionTables._coefnames(m::CustomModel) = RegressionTables.get_coefname(m.coefnames)
+StatsAPI.coefnames(m::CustomModel) = m.coefnames
+StatsAPI.responsename(m::CustomModel) = m.responsename
+RegressionTables._responsename(m::CustomModel) = RegressionTables.get_coefname(m.responsename)
+StatsAPI.vcov(m::CustomModel) = m.vcov
+StatsAPI.nobs(m::CustomModel) = m.nobs
+StatsAPI.dof_residual(m::CustomModel) = m.dof_residual
+RegressionTables.RegressionType(m::CustomModel) = RegressionTables.RegressionType("My type")
 
-StatsAPI.coef(m::ExampleModule.CustomModel) = m.coef
-RegressionTables._coefnames(m::ExampleModule.CustomModel) = RegressionTables.get_coefname(m.coefnames)
-StatsAPI.coefnames(m::ExampleModule.CustomModel) = m.coefnames
-StatsAPI.responsename(m::ExampleModule.CustomModel) = m.responsename
-RegressionTables._responsename(m::ExampleModule.CustomModel) = RegressionTables.get_coefname(m.responsename)
-StatsAPI.vcov(m::ExampleModule.CustomModel) = m.vcov
-StatsAPI.nobs(m::ExampleModule.CustomModel) = m.nobs
-#StatsAPI.rss(m::ExampleModule.CustomModel) = m.rss
-StatsAPI.dof_residual(m::ExampleModule.CustomModel) = m.dof_residual
-#StatsAPI.nulldeviance(m::ExampleModule.CustomModel) = m.tss
-RegressionTables.RegressionType(m::ExampleModule.CustomModel) = RegressionTables.RegressionType("My type")
-#StatsAPI.deviance(m::ExampleModule.CustomModel) = StatsAPI.rss(m)
-#StatsAPI.mss(m::ExampleModule.CustomModel) = nulldeviance(m) - StatsAPI.rss(m)
+StatsAPI.loglikelihood(m::CustomModel) = m.LogLikelihood;
 
-#StatsAPI.r2(m::ExampleModule.CustomModel) = StatsAPI.r2(m, :devianceratio)
-StatsAPI.loglikelihood(m::ExampleModule.CustomModel) = m.LogLikelihood;
-#StatsModels.formula(m::ExampleModule.CustomModel) = m.formula
 
-StatsAPI.bic(m::ExampleModule.CustomModel) = m.BIC
-#RegressionTables.BIC(m::ExampleModule.CustomModel) = m.BIC
+StatsAPI.bic(m::CustomModel) = m.BIC
 
 
 function Base.repr(render::AbstractRenderType, x::ConfInt; digits=RegressionTables.default_digits(render, x), args...)
@@ -155,25 +273,20 @@ function Base.repr(render::AbstractRenderType, x::ConfInt; digits=RegressionTabl
         RegressionTables.below_decoration(render, repr(render, RegressionTables.value(x)[1]; digits) * ", " * Base.repr(render::AbstractRenderType, RegressionTables.value(x)[2]; digits))
     end
 end
-#=
-function RegressionTables.ConfInt(m::ExampleModule.CustomModel, k::Int; level=0.95, standardize=false, vargs...)
-    RegressionTables.ConfInt(m.civec[k])
-end
-=#
-# should work again
-function StatsAPI.confint(m::ExampleModule.CustomModel; level::Real = 0.95)
+
+function StatsAPI.confint(m::CustomModel; level::Real = 0.95)
     m.civec
 end
 
-ExampleModule.MyStatistic(m::ExampleModule.CustomModel) = ExampleModule.MyStatistic(nothing)
-ExampleModule.MyStatistic(m::ExampleModule.CustomModel) = ExampleModule.MyStatistic(m.BS)
-RegressionTables.label(render::AbstractRenderType, x::Type{ExampleModule.MyStatistic}) = "Normality"
-RegressionTables.default_regression_statistics(m::ExampleModule.CustomModel) = [Nobs,ExampleModule.MyStatistic,LogLikelihood,BIC]
+MyStatistic(m::CustomModel) = MyStatistic(nothing)
+MyStatistic(m::CustomModel) = MyStatistic(m.BS)
+RegressionTables.label(render::AbstractRenderType, x::Type{MyStatistic}) = "Normality"
+RegressionTables.default_regression_statistics(m::CustomModel) = [Nobs,MyStatistic,LogLikelihood,BIC]
 
 RegressionTables.default_symbol(render::AbstractRenderType) = ""
 
 
-function StatsAPI.fit(::Type{ExampleModule.CustomModel},X,Y,s_v,restricted_parameters)
+function StatsAPI.fit(::Type{CustomModel},X,Y,s_v,restricted_parameters)
     
     function Log_Likelihood(X, Y, params::AbstractVector{T}, restricted_parameters) where T
     
@@ -221,7 +334,7 @@ function StatsAPI.fit(::Type{ExampleModule.CustomModel},X,Y,s_v,restricted_param
     civec = vcat(hcat(left_end.array,right_end.array),[0 0]);
 
     #create fitted model and return that
-    ExampleModule.CustomModel(all_parameters.array,augmented_var_cov_matrix.array,n-length(s_v),n,names_param,"Outcome",ll,BIC,BS,civec)
+    CustomModel(all_parameters.array,augmented_var_cov_matrix.array,n-length(s_v),n,names_param,"Outcome",ll,BIC,BS,civec)
     
 end
 
@@ -236,8 +349,29 @@ setnames!(s_v_r,["Beta 1"],1);
 s_v_r["Beta 1"] = 3.
 
 
-rr1 = StatsAPI.fit(ExampleModule.CustomModel,x,y,s_v,s_v_r)
+rr1 = StatsAPI.fit(CustomModel,x,y,s_v,s_v_r)
 
 
 RegressionTables.regtable(rr1,below_statistic = ConfInt)
+
+```
+
+Output
+
+```julia 
+-------------------------------
+                     Outcome
+-------------------------------
+Beta 2                    3.069
+                 (2.926, 3.212)
+Sigma                     0.406
+                 (0.326, 0.506)
+Beta 1                    3.000
+                     restricted
+-------------------------------
+N                            40
+Normality                 1.115
+Log Likelihood          -20.722
+BIC                      48.823
+-------------------------------
 ```
