@@ -1703,3 +1703,15 @@ regtable(rr1, rr6, rr7; render = TypstTable())
   table.hline(),
 )
 ```
+
+Optionally, tables can also be rendered in IJulia.jl, Pluto.jl, and QuartoRunner.jl notebooks via the [Typstry.jl](https://jakobjpeters.github.io/Typstry.jl) package:
+
+```julia
+using Typstry
+
+typst"""
+#set text(font: "New Computer Modern") /* JuliaMono by default */
+
+\(regtable(rr1, rr6, rr7; render = TypstTable()))
+"""
+```
