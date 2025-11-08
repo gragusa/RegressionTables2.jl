@@ -1,18 +1,34 @@
+# RegressionTables2.jl
 
-[![dev][docs-dev-img]][docs-dev-url]
-[![stable][docs-stable-img]][docs-stable-url]
-[![Build Status](https://travis-ci.org/jmboehm/RegressionTables.jl.svg?branch=master)](https://travis-ci.org/jmboehm/RegressionTables.jl) [![codecov.io](http://codecov.io/github/jmboehm/RegressionTables.jl/coverage.svg?branch=master)](http://codecov.io/github/jmboehm/RegressionTables.jl?branch=master) [![DOI](https://zenodo.org/badge/110714417.svg)](https://zenodo.org/badge/latestdoi/110714417)
-
-[docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg?style=flat-square
-[docs-dev-url]: https://jmboehm.github.io/RegressionTables.jl/dev/
-[docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg?style=flat-square
-[docs-stable-url]: https://jmboehm.github.io/RegressionTables.jl/stable/
-
-# RegressionTables.jl
+> **Note:** This is a fork of [RegressionTables.jl](https://github.com/jmboehm/RegressionTables.jl) to experiment with using different covariance functions via integration with [CovarianceMatrices.jl](https://github.com/gragusa/CovarianceMatrices.jl).
 
 This package provides publication-quality regression tables for use with [FixedEffectModels.jl](https://github.com/matthieugomez/FixedEffectModels.jl), [GLM.jl](https://github.com/JuliaStats/GLM.jl), [GLFixedEffectModels.jl](https://github.com/jmboehm/GLFixedEffectModels.jl) and [MixedModels.jl](https://github.com/JuliaStats/MixedModels.jl), as well as any package that implements the [RegressionModel abstraction](https://juliastats.org/StatsBase.jl/latest/statmodels/).
 
 In its objective it is similar to  (and heavily inspired by) the Stata command [`esttab`](http://repec.sowi.unibe.ch/stata/estout/esttab.html) and the R package [`stargazer`](https://cran.r-project.org/web/packages/stargazer/).
+
+## Custom Covariance Matrices
+
+This fork adds support for custom covariance matrices via [CovarianceMatrices.jl](https://github.com/gragusa/CovarianceMatrices.jl), allowing you to easily use robust standard errors (HC0-HC5, HAC, cluster-robust, etc.) in your regression tables.
+
+### Example with Robust Standard Errors
+
+```julia
+using RegressionTables, GLM, DataFrames, RDatasets, CovarianceMatrices
+
+# Load data
+df = dataset("datasets", "iris")
+
+# Fit a regression model
+rr1 = lm(@formula(SepalLength ~ SepalWidth), df)
+
+# Create table with HC1 robust standard errors
+regtable(rr1 + vcov(HC1()))
+```
+
+You can use any covariance estimator from CovarianceMatrices.jl:
+- `HC0()`, `HC1()`, `HC2()`, `HC3()`, `HC4()`, `HC5()` - Heteroskedasticity-robust
+- `HAC(kernel, bandwidth)` - Heteroskedasticity and autocorrelation consistent
+- And more!
 ## Table of Contents
 
 - [RegressionTables.jl](#regressiontablesjl)
@@ -159,6 +175,30 @@ then use `\input` in LaTeX to include that file in your code. Be sure to use the
 
 \end{document}
 ```
+
+### Custom covariance estimators
+
+RegressionTables uses the variance–covariance matrix to compute the standard errors that are printed in the table.  
+You can override the matrix that comes from `StatsAPI.vcov(model)` by attaching a covariance **specification** to any `RegressionModel`
+before passing it to `regtable`. The simplest case is to provide the covariance matrix directly:
+
+```julia
+robust_model = lm1 + vcov(sandwich_matrix)   # diagonal values become the reported standard errors
+regtable(robust_model, rr2, rr3)
+```
+
+More commonly you will want to pass an object that can construct the matrix on demand (for example something from
+[CovarianceMatrices.jl](https://github.com/gragusa/CovarianceMatrices.jl)):
+
+```julia
+using CovarianceMatrices
+regtable(rr1 + vcov(HC1()), rr2 + vcov(Bartlett(5)), rr3)
+```
+
+`RegressionTables.vcov(::Any)` returns a specification that the table knows how to materialize later; packages such as
+`CovarianceMatrices.jl` only need to provide `RegressionTables.materialize_vcov(estimator, model)` to hook into the process.
+Manual users can also pass a function that receives the model and returns a matrix, e.g. `rr + vcov(m -> vcov(HC1(), m))`.
+Standard errors fall back to `StatsAPI.stderror(model)` whenever no override is present, so existing code keeps working unchanged.
 
 `regtable()` can also print `TableRegressionModel`'s from [GLM.jl](https://github.com/JuliaStats/GLM.jl) (and output from other packages that produce `TableRegressionModel`'s):
 ```julia

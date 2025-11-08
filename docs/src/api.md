@@ -107,3 +107,17 @@ RegressionTables.can_standardize
 RegressionTables.standardize_coef_values
 RegressionTables.RegressionType
 ```
+
+## Custom covariance specifications
+
+Standard errors used in the tables can be overridden by attaching a covariance specification to each model.
+Use [`RegressionTables.vcov`](@ref) to construct a specification (from a matrix, function, or custom estimator)
+and add it to a model with `model + vcov(spec)`. Third-party packages such as `CovarianceMatrices.jl`
+can plug in by extending [`RegressionTables.materialize_vcov`](@ref).
+
+```@docs
+RegressionTables.AbstractVcovSpec
+RegressionTables.vcov
+RegressionTables.materialize_vcov
+RegressionTables.RegressionModelWithVcov
+```

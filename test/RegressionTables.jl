@@ -1,5 +1,7 @@
 using RegressionTables
 using FixedEffectModels, GLM, RDatasets, Test
+using LinearAlgebra
+using StatsAPI: RegressionModel
 
 df = RDatasets.dataset("datasets", "iris")
 df[!, :isSmall] = df[!, :SepalWidth] .< 2.9
@@ -167,6 +169,147 @@ tab = regtable(lm1, lm2, lm3, gm1; renderSettings = latexOutput(joinpath(dirname
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "test6.tex"), joinpath(dirname(@__FILE__), "tables", "test6_reference.tex"))
 
 
+
+@testset "custom covariance specifications" begin
+    base = lm1
+    p = length(coef(base))
+    Σ = Matrix{Float64}(I, p, p) .* 0.01
+
+    wrapped = base + vcov(Σ)
+    expected = fill(0.1, p)
+    @test RegressionTables._stderror(wrapped) ≈ expected
+    @test stderror(wrapped) ≈ expected
+    @test stderror(base) ≉ expected
+
+    calls = Ref(0)
+    fun_spec = vcov(model -> begin
+        calls[] += 1
+        Σ
+    end)
+    wrapped_fun = base + fun_spec
+    RegressionTables._stderror(wrapped_fun)
+    RegressionTables._stderror(wrapped_fun)
+    @test calls[] == 1
+
+    zero_arg_spec = vcov(() -> Σ .* 4)
+    wrapped_zero = base + zero_arg_spec
+    @test RegressionTables._stderror(wrapped_zero) ≈ fill(0.2, p)
+
+    struct DummyEstimator end
+    RegressionTables.materialize_vcov(::DummyEstimator, model::RegressionModel) = Σ .* 9
+    wrapped_ext = base + vcov(DummyEstimator())
+    @test RegressionTables._stderror(wrapped_ext) ≈ fill(0.3, p)
+
+    overridden = (base + vcov(Σ)) + vcov(Σ .* 16)
+    @test RegressionTables._stderror(overridden) ≈ fill(0.4, p)
+
+    badΣ = ones(1, 1)
+    bad = base + vcov(badΣ)
+    @test_throws ArgumentError RegressionTables._stderror(bad)
+
+    @test_throws ArgumentError RegressionTables._stderror(base + vcov(:unknown))
+
+    # Test edge cases
+    @testset "Edge cases" begin
+        # Non-square matrix (though validation will catch same dimension mismatch)
+        non_square = ones(p, p+1)
+        @test_throws ArgumentError RegressionTables._stderror(base + vcov(non_square))
+
+        # Non-symmetric matrix (should warn but not error)
+        non_symmetric = Σ .+ 0.001 .* (1:p) .* (1:p)'
+        non_symmetric[1, 2] += 0.1  # Make it asymmetric
+        wrapped_nonsym = base + vcov(non_symmetric)
+        # Should work but produce a warning
+        @test_logs (:warn, r"not symmetric") RegressionTables._stderror(wrapped_nonsym)
+
+        # Function that doesn't accept model or zero args
+        bad_fun = (x, y) -> Σ
+        @test_throws ArgumentError RegressionTables._stderror(base + vcov(bad_fun))
+
+        # Negative variance on diagonal (physically invalid but dimensionally OK)
+        bad_diag = copy(Σ)
+        bad_diag[1, 1] = -0.01
+        wrapped_bad = base + vcov(bad_diag)
+        # Should be computable even if physically nonsensical
+        se = RegressionTables._stderror(wrapped_bad)
+        @test isnan(se[1])  # sqrt of negative is NaN
+    end
+end
+
+@testset "CovarianceMatrices.jl integration" begin
+    # These tests are conditional on CovarianceMatrices being available
+    if Base.pkgversion(Base.PkgId(Base.UUID("60f91f6f-d783-54cb-84f9-544141854719"), "CovarianceMatrices")) !== nothing
+        using CovarianceMatrices
+
+        base = lm1
+        p = length(coef(base))
+
+        @testset "HC estimators" begin
+            # Test HC0
+            wrapped_hc0 = base + vcov(HC0())
+            se_hc0 = stderror(wrapped_hc0)
+            @test length(se_hc0) == p
+            @test all(se_hc0 .> 0)  # Standard errors should be positive
+
+            # Test HC1 (should be slightly larger than HC0)
+            wrapped_hc1 = base + vcov(HC1())
+            se_hc1 = stderror(wrapped_hc1)
+            @test se_hc1 != stderror(base)  # Should differ from standard errors
+
+            # Test HC3 (most commonly used)
+            wrapped_hc3 = base + vcov(HC3())
+            se_hc3 = stderror(wrapped_hc3)
+            @test all(se_hc3 .> 0)
+
+            # Test that vcov matrix is symmetric
+            Σ_hc3 = vcov(wrapped_hc3)
+            @test issymmetric(Σ_hc3)
+            @test size(Σ_hc3) == (p, p)
+        end
+
+        @testset "HAC estimators" begin
+            # Test Bartlett kernel
+            wrapped_bartlett = base + vcov(HAC(Bartlett, 5))
+            se_bartlett = stderror(wrapped_bartlett)
+            @test length(se_bartlett) == p
+            @test all(se_bartlett .> 0)
+
+            # Test Parzen kernel
+            wrapped_parzen = base + vcov(HAC(Parzen, 3))
+            se_parzen = stderror(wrapped_parzen)
+            @test all(se_parzen .> 0)
+
+            # Test that different kernels give different results
+            @test se_bartlett != se_parzen
+        end
+
+        @testset "Caching" begin
+            # Verify that covariance matrix is computed only once
+            wrapped = base + vcov(HC1())
+            Σ1 = vcov(wrapped)
+            Σ2 = vcov(wrapped)
+            @test Σ1 === Σ2  # Should be same object (cached)
+        end
+
+        @testset "Operator chaining" begin
+            # Test that we can override vcov
+            wrapped1 = base + vcov(HC0())
+            wrapped2 = wrapped1 + vcov(HC3())
+            se1 = stderror(wrapped1)
+            se2 = stderror(wrapped2)
+            @test se1 != se2  # Different estimators should give different results
+        end
+
+        @testset "Integration with regtable" begin
+            # Test that regtable works with custom vcov
+            tab = regtable(base + vcov(HC3()), renderSettings = asciiOutput())
+            @test tab !== nothing
+            # Just ensure it doesn't error - visual output testing is beyond scope
+        end
+    else
+        @info "Skipping CovarianceMatrices.jl integration tests (package not available)"
+    end
+end
 
 # HTML Tables
 regtable(rr1,rr2,rr3,rr5; renderSettings = RegressionTables.htmlOutput(joinpath(dirname(@__FILE__), "tables", "test1.html")), regression_statistics = [:nobs, :r2, :adjr2, :r2_within, :f, :p, :f_kp, :p_kp, :dof])

@@ -2,6 +2,29 @@
 ```@contents
 Pages=["examples.md"]
 ```
+
+### Custom covariance matrices
+
+RegressionTables can display standard errors computed from an arbitrary variance–covariance estimator.  
+Attach a covariance specification to each model before calling `regtable`.
+
+```julia
+using RegressionTables, GLM, CovarianceMatrices, RDatasets
+
+df = dataset("datasets", "iris")
+lm1 = lm(@formula(SepalLength ~ SepalWidth), df)
+lm2 = lm(@formula(SepalLength ~ SepalWidth + PetalWidth), df)
+
+regtable(
+    lm1 + vcov(HC1()),
+    lm2 + vcov(Bartlett(5));
+    render = AsciiTable(),
+)
+```
+
+`vcov` accepts matrices, zero-argument callables, or functions of the model. Libraries such as CovarianceMatrices.jl can integrate
+by adding `RegressionTables.materialize_vcov(estimator, model)` so that `vcov(estimator)` works out of the box.
+
 Setup for the following examples:
 ```@meta
 DocTestSetup = quote # hide

@@ -26,9 +26,11 @@ module RegressionTables
     using StatsModels
     using Statistics
     using StatsAPI
+    import StatsAPI: coef, stderror, dof_residual, responsename, coefnames, islinear, nobs, vcov
 
     using Distributions
     using Format
+    using LinearAlgebra: issymmetric
     
     ##############################################################################
     ##
@@ -47,6 +49,7 @@ module RegressionTables
     export make_estim_decorator
 
     export latexOutput, asciiOutput, htmlOutput
+    export vcov
 
 
     ##############################################################################
