@@ -1,7 +1,7 @@
 name = "RegressionTables"
 uuid = "d519eb52-b820-54da-95a6-98e1306fdade"
-authors = ["Johannes Boehm <johannes.boehm@gmail.com>"]
 version = "0.7.9"
+authors = ["Johannes Boehm <johannes.boehm@gmail.com>"]
 
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
@@ -32,7 +32,7 @@ FixedEffectModels = "1.9"
 Format = "1.3"
 GLFixedEffectModels = "0.5"
 GLM = "1.3"
-MixedModels = "4"
+MixedModels = "4, 5"
 Statistics = "1"
 StatsAPI = "1.6"
 StatsBase = "0.32, 0.33, 0.34"
