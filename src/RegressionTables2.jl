@@ -1,4 +1,4 @@
-module RegressionTables
+module RegressionTables2
 
     ##############################################################################
     ##

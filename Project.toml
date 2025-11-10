@@ -1,5 +1,5 @@
-name = "RegressionTables"
-uuid = "d519eb52-b820-54da-95a6-98e1306fdade"
+name = "RegressionTables2"
+uuid = "ee7cb3fd-1e53-430d-af66-71c292f3fa61"
 version = "0.7.9"
 authors = ["Johannes Boehm <johannes.boehm@gmail.com>"]
 
@@ -21,12 +21,12 @@ MixedModels = "ff71e718-51f3-5ec2-a782-8ffcbfa3c316"
 Typstry = "f0ed7684-a786-439e-b1e3-3b82803b501e"
 
 [extensions]
-RegressionTablesCovarianceMatricesExt = "CovarianceMatrices"
-RegressionTablesFixedEffectModelsExt = "FixedEffectModels"
-RegressionTablesGLFixedEffectModelsExt = "GLFixedEffectModels"
-RegressionTablesGLMExt = "GLM"
-RegressionTablesMixedModelsExt = "MixedModels"
-RegressionTablesTypstryExt = "Typstry"
+RegressionTables2CovarianceMatricesExt = "CovarianceMatrices"
+RegressionTables2FixedEffectModelsExt = "FixedEffectModels"
+RegressionTables2GLFixedEffectModelsExt = "GLFixedEffectModels"
+RegressionTables2GLMExt = "GLM"
+RegressionTables2MixedModelsExt = "MixedModels"
+RegressionTables2TypstryExt = "Typstry"
 
 [compat]
 Aqua = "0.8"

@@ -105,6 +105,14 @@ model via `model + vcov(spec)` so that the provided variance–covariance matrix
 displaying standard errors.
 """
 vcov(x::VcovSpec) = x
+
+##############################################################################
+##
+## TYPE PIRACY WARNING: The following method causes type piracy
+## This extends StatsAPI.vcov for all types, which we don't own.
+## TODO: Move this to CovarianceMatrices.jl or refactor the API
+##
+##############################################################################
 vcov(spec) = VcovSpec(spec)
 
 # Dispatch on VcovSpec based on source type
@@ -195,28 +203,12 @@ function +(spec::VcovSpec, rr::RegressionModel)
     rr + spec
 end
 
-function +(rr::RegressionModel, mat::AbstractMatrix)
-    rr + vcov(mat)
-end
-
-function +(mat::AbstractMatrix, rr::RegressionModel)
-    rr + mat
-end
-
 function +(rr::RegressionModelWithVcov, spec::VcovSpec)
     RegressionModelWithVcov(rr.model, spec)
 end
 
 function +(spec::VcovSpec, rr::RegressionModelWithVcov)
     rr + spec
-end
-
-function +(rr::RegressionModelWithVcov, mat::AbstractMatrix)
-    RegressionModelWithVcov(rr.model, vcov(mat))
-end
-
-function +(mat::AbstractMatrix, rr::RegressionModelWithVcov)
-    rr + mat
 end
 
 # delegate StatsAPI methods to the wrapped model, except for vcov/stderror which use the custom specification
