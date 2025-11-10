@@ -1,4 +1,4 @@
-using RegressionTables: _escape
+using RegressionTables2: _escape
 using Test
 @testset "label transforms" begin
   # ampersand

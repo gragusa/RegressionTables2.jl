@@ -1,6 +1,6 @@
-using MixedModels, Test, RegressionTables
+using MixedModels, Test, RegressionTables2
 
-# include("src/RegressionTables.jl")
+# include("src/RegressionTables2.jl")
 
 m1 = fit(MixedModel, @formula(yield ~ 1 + (1|batch)), MixedModels.dataset(:dyestuff); progress=false)
 gm1 = fit(MixedModel, @formula(use ~ 1 + urban + livch + age + abs2(age) + (1|dist)),
