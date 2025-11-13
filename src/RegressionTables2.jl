@@ -31,6 +31,7 @@ module RegressionTables2
     using Distributions
     using Format
     using LinearAlgebra: issymmetric
+    using PrettyTables
     
     ##############################################################################
     ##
@@ -38,17 +39,19 @@ module RegressionTables2
     ##
     ##############################################################################
 
-    export regtable, LatexTable, LatexTableStar, AsciiTable, HtmlTable, AbstractRenderType,
-    AbstractAscii, AbstractLatex, AbstractHtml, TypstTable, AbstractTypst
+    export modelsummary, RegressionTable
     export Nobs, R2, R2McFadden, R2CoxSnell, R2Nagelkerke,
     R2Deviance, AdjR2, AdjR2McFadden, AdjR2Deviance, DOF, LogLikelihood, AIC, BIC, AICC,
     FStat, FStatPValue, FStatIV, FStatIVPValue, R2Within, PseudoR2, AdjPseudoR2
     export TStat, StdError, ConfInt, RegressionType
-    export DataRow, RegressionTable
+
+    # Type system exports
+    export AbstractRenderType, AbstractRegressionStatistic, AsciiTable, LatexTable, HtmlTable
+
+    # Customization functions
+    export add_hline!, remove_hline!, set_alignment!, add_formatter!, set_backend!, merge_kwargs!
 
     export make_estim_decorator
-
-    export latexOutput, asciiOutput, htmlOutput
     export vcov
 
 
@@ -58,26 +61,22 @@ module RegressionTables2
     ##
     ##############################################################################
 
-    # main types
-    include("datarow.jl")
+    # main types (needed by render_compat)
     include("RegressionStatistics.jl")
     include("coefnames.jl")
-    include("regressiontable.jl")
     include("regressionResults.jl")
-    include("rendersettings/default.jl")
-    include("rendersettings/ascii.jl")
-    include("rendersettings/latex.jl")
-    include("rendersettings/html.jl")
-    include("rendersettings/typst.jl")
 
+    # compatibility layer for rendering system
+    include("compat/render_compat.jl")
 
     # main settings
     include("decorations/default_decorations.jl")
-
     include("label_transforms/default_transforms.jl")
 
+    # table structure (PrettyTables-based)
+    include("regressiontable.jl")
+
     # main functions
-    
     include("regtable.jl")
 
 end

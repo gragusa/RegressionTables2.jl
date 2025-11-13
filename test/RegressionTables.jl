@@ -68,20 +68,20 @@ end
 
 ##
 rr_short = reg(df, @formula(SepalLength ~ log1p(SepalWidth)))
-tab = regtable(rr_short)
+tab = modelsummary(rr_short)
 @test tab[4, 1] == "log1p(SepalWidth)"
 
 
 
-tab = regtable(rr4,rr5,lm1, lm2, gm1; renderSettings = asciiOutput(joinpath(dirname(@__FILE__), "tables", "ftest1.txt")), regression_statistics = [:nobs, :r2, :adjr2, :r2_within, :f, :p, :f_kp, :p_kp, :dof])
-@test tab.vertical_gaps == [3, 5]
+tab = modelsummary(rr4,rr5,lm1, lm2, gm1; render = AsciiTable(), file = joinpath(dirname(@__FILE__), "tables", "ftest1.txt"), regression_statistics = [:nobs, :r2, :adjr2, :r2_within, :f, :p, :f_kp, :p_kp, :dof])
+@test tab.hlines == [3, 5]
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "ftest1.txt"), joinpath(dirname(@__FILE__), "tables", "ftest1_reference.txt"))
 # regressors and labels
-tab = regtable(rr4,rr5,lm1, lm2, gm1; renderSettings = asciiOutput(joinpath(dirname(@__FILE__), "tables", "ftest2.txt")), regression_statistics = [:nobs, :r2, :adjr2, :r2_within, :f, :p, :f_kp, :p_kp, :dof], regressors = ["SepalLength", "PetalWidth"])
+tab = modelsummary(rr4,rr5,lm1, lm2, gm1; render = AsciiTable(), file = joinpath(dirname(@__FILE__), "tables", "ftest2.txt"), regression_statistics = [:nobs, :r2, :adjr2, :r2_within, :f, :p, :f_kp, :p_kp, :dof], keep = ["SepalLength", "PetalWidth"])
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "ftest2.txt"), joinpath(dirname(@__FILE__), "tables", "ftest2_reference.txt"))
 # fixedeffects, estimformat, statisticformat, number_regressions_decoration
-tab = regtable(rr3,rr5,lm1, lm2, gm1; renderSettings = asciiOutput(joinpath(dirname(@__FILE__), "tables", "ftest3.txt")), fixedeffects = ["SpeciesDummy"], estimformat = "%0.4f", statisticformat = "%0.4f", number_regressions_decoration = i -> "[$i]")
-@test tab.vertical_gaps == [2, 3, 5]
+tab = modelsummary(rr3,rr5,lm1, lm2, gm1; render = AsciiTable(), file = joinpath(dirname(@__FILE__), "tables", "ftest3.txt"), fixedeffects = ["SpeciesDummy"], estimformat = "%0.4f", statisticformat = "%0.4f", number_regressions_decoration = i -> "[$i]")
+@test tab.hlines == [2, 3, 5]
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "ftest3.txt"), joinpath(dirname(@__FILE__), "tables", "ftest3_reference.txt"))
 # estim_decoration, below_statistic, below_decoration, number_regressions
 
@@ -97,41 +97,41 @@ function dec(s::String, pval::Float64)
         return "$s<-OMG!"
     end
 end
-tab = regtable(rr3,rr5,lm1, lm2, gm1; renderSettings = asciiOutput(joinpath(dirname(@__FILE__), "tables", "ftest4.txt")), estim_decoration = dec, below_statistic = :tstat, below_decoration = s -> "[$s]", number_regressions = false)
-@test tab.vertical_gaps == []
+tab = modelsummary(rr3,rr5,lm1, lm2, gm1; render = AsciiTable(), file = joinpath(dirname(@__FILE__), "tables", "ftest4.txt"), estim_decoration = dec, below_statistic = :tstat, below_decoration = s -> "[$s]", number_regressions = false)
+@test tab.hlines == []
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "ftest4.txt"), joinpath(dirname(@__FILE__), "tables", "ftest4_reference.txt"))
 # print_fe_section, print_estimator_section
-regtable(rr3,rr5,lm1, lm2, gm1; renderSettings = asciiOutput(joinpath(dirname(@__FILE__), "tables", "ftest5.txt")), print_fe_section = false, print_estimator_section = false)
+modelsummary(rr3,rr5,lm1, lm2, gm1; render = AsciiTable(), file = joinpath(dirname(@__FILE__), "tables", "ftest5.txt"), print_fe_section = false, print_estimator_section = false)
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "ftest5.txt"), joinpath(dirname(@__FILE__), "tables", "ftest5_reference.txt"))
 # transform_labels and custom labels
-tab = regtable(rr5,rr6,lm1, lm2, lm3; renderSettings = asciiOutput(joinpath(dirname(@__FILE__), "tables", "ftest6.txt")), regression_statistics = [:nobs, :r2, :adjr2, :r2_within, :f, :p, :f_kp, :p_kp, :dof], transform_labels = :ampersand,
+tab = modelsummary(rr5,rr6,lm1, lm2, lm3; render = AsciiTable(), file = joinpath(dirname(@__FILE__), "tables", "ftest6.txt"), regression_statistics = [:nobs, :r2, :adjr2, :r2_within, :f, :p, :f_kp, :p_kp, :dof], transform_labels = :ampersand,
 labels = Dict("SepalLength" => "My dependent variable: SepalLength", "PetalLength" => "Length of Petal", "PetalWidth" => "Width of Petal", "(Intercept)" => "Const." , "isSmall" => "isSmall Dummies", "SpeciesDummy" => "Species Dummies"))
-@test tab.vertical_gaps == [2]
+@test tab.hlines == [2]
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "ftest6.txt"), joinpath(dirname(@__FILE__), "tables", "ftest6_reference.txt"))
 # grouped regressions PR #61
 # NOTE: behavior in ftest8 and ftest9 should be improved (Issue #63)
-tab = regtable(rr1,rr5,rr2,rr4; renderSettings = asciiOutput(joinpath(dirname(@__FILE__), "tables", "ftest7.txt")), groups=["grp1" "grp1" "grp2" "grp2"])
-@test tab.vertical_gaps == [2, 3, 4]
+tab = modelsummary(rr1,rr5,rr2,rr4; render = AsciiTable(), file = joinpath(dirname(@__FILE__), "tables", "ftest7.txt"), groups=["grp1" "grp1" "grp2" "grp2"])
+@test tab.hlines == [2, 3, 4]
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "ftest7.txt"), joinpath(dirname(@__FILE__), "tables", "ftest7_reference.txt"))
-regtable(rr1,rr5,rr2,rr4; renderSettings = asciiOutput(joinpath(dirname(@__FILE__), "tables", "ftest8.txt")), groups=["grp1" "grp1" "looooooooooooooooogong grp2" "looooooooooooooooogong grp2"])
+modelsummary(rr1,rr5,rr2,rr4; render = AsciiTable(), file = joinpath(dirname(@__FILE__), "tables", "ftest8.txt",groups=["grp1" "grp1" "looooooooooooooooogong grp2" "looooooooooooooooogong grp2"])
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "ftest8.txt"), joinpath(dirname(@__FILE__), "tables", "ftest8_reference.txt"))
-tab = regtable(rr5,rr1,rr2,rr4; renderSettings = asciiOutput(joinpath(dirname(@__FILE__), "tables", "ftest9.txt")), groups=["grp1" "grp1" "grp2" "grp2"])
-@test tab.vertical_gaps == [2, 3, 4]
+tab = modelsummary(rr5,rr1,rr2,rr4; render = AsciiTable(), file = joinpath(dirname(@__FILE__), "tables", "ftest9.txt",groups=["grp1" "grp1" "grp2" "grp2"])
+@test tab.hlines == [2, 3, 4]
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "ftest9.txt"), joinpath(dirname(@__FILE__), "tables", "ftest9_reference.txt"))
 
-tab = regtable(rr1,rr2,rr3,rr5; renderSettings = asciiOutput(joinpath(dirname(@__FILE__), "tables", "test1.txt")), regression_statistics = [:nobs, :r2, :adjr2, :r2_within, :f, :p, :f_kp, :p_kp, :dof])
-@test tab.vertical_gaps ==[4]
+tab = modelsummary(rr1,rr2,rr3,rr5; render = AsciiTable(), file = joinpath(dirname(@__FILE__), "tables", "test1.txt",regression_statistics = [:nobs, :r2, :adjr2, :r2_within, :f, :p, :f_kp, :p_kp, :dof])
+@test tab.hlines ==[4]
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "test1.txt"), joinpath(dirname(@__FILE__), "tables", "test1_reference.txt"))
 
-tab = regtable(rr1,rr2,rr3,rr5,rr6,rr7; renderSettings = asciiOutput(joinpath(dirname(@__FILE__), "tables", "test7.txt")), regression_statistics = [:nobs, :r2, :adjr2, :r2_within, :f, :p, :f_kp, :p_kp, :dof])
-@test tab.vertical_gaps ==[4, 5]
+tab = modelsummary(rr1,rr2,rr3,rr5,rr6,rr7; render = AsciiTable(), file = joinpath(dirname(@__FILE__), "tables", "test7.txt",regression_statistics = [:nobs, :r2, :adjr2, :r2_within, :f, :p, :f_kp, :p_kp, :dof])
+@test tab.hlines ==[4, 5]
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "test7.txt"), joinpath(dirname(@__FILE__), "tables", "test7_reference.txt"))
 
-tab = regtable(lm1, lm2, gm1; renderSettings = asciiOutput(joinpath(dirname(@__FILE__), "tables", "test3.txt")), regression_statistics = [:nobs, :r2])
-@test tab.vertical_gaps ==[3]
+tab = modelsummary(lm1, lm2, gm1; render = AsciiTable(), file = joinpath(dirname(@__FILE__), "tables", "test3.txt",regression_statistics = [:nobs, :r2])
+@test tab.hlines ==[3]
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "test3.txt"), joinpath(dirname(@__FILE__), "tables", "test3_reference.txt"))
 
-regtable(lm1, lm2, lm4; renderSettings = asciiOutput(joinpath(dirname(@__FILE__), "tables", "test8.txt")), regression_statistics = [:nobs, :r2])
+modelsummary(lm1, lm2, lm4; render = AsciiTable(), file = joinpath(dirname(@__FILE__), "tables", "test8.txt",regression_statistics = [:nobs, :r2])
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "test8.txt"), joinpath(dirname(@__FILE__), "tables", "test8_reference.txt"))
 
 
@@ -139,11 +139,11 @@ using Statistics
 comments = ["Specification", "Baseline", "Preferred"]
 means = ["My custom mean", Statistics.mean(df.SepalLength[rr1.esample]), Statistics.mean(df.SepalLength[rr2.esample])]
 mystats = [comments, means]
-regtable(rr1, rr2; renderSettings = asciiOutput(joinpath(dirname(@__FILE__), "tables", "test9.txt")), regression_statistics = [:nobs, :r2],extralines = mystats)
+modelsummary(rr1, rr2; render = AsciiTable(), file = joinpath(dirname(@__FILE__), "tables", "test9.txt",regression_statistics = [:nobs, :r2],extralines = mystats)
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "test9.txt"), joinpath(dirname(@__FILE__), "tables", "test9_reference.txt"))
 
 # below_decoration = :none
-regtable(rr1,rr2,rr3,rr4; renderSettings = asciiOutput(joinpath(dirname(@__FILE__), "tables", "test10.txt")), below_statistic = :none)
+modelsummary(rr1,rr2,rr3,rr4; render = AsciiTable(), file = joinpath(dirname(@__FILE__), "tables", "test10.txt",below_statistic = :none)
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "test10.txt"), joinpath(dirname(@__FILE__), "tables", "test10_reference.txt"))
 
 
@@ -151,21 +151,21 @@ regtable(rr1,rr2,rr3,rr4; renderSettings = asciiOutput(joinpath(dirname(@__FILE_
 
 
 
-tab = regtable(rr1,rr2,rr3,rr5; renderSettings = latexOutput(joinpath(dirname(@__FILE__), "tables", "test2.tex")), regression_statistics = [:nobs, :r2, :adjr2, :r2_within, :f, :p, :f_kp, :p_kp, :dof])
-@test tab.vertical_gaps == [4]
+tab = modelsummary(rr1,rr2,rr3,rr5; render = LatexTable(), file = joinpath(dirname(@__FILE__), "tables", "test2.tex",regression_statistics = [:nobs, :r2, :adjr2, :r2_within, :f, :p, :f_kp, :p_kp, :dof])
+@test tab.hlines == [4]
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "test2.tex"), joinpath(dirname(@__FILE__), "tables", "test2_reference.tex"))
 
-regtable(rr1,rr2,rr3,rr5; renderSettings = latexOutput(joinpath(dirname(@__FILE__), "tables", "test3.tex")), 
+modelsummary(rr1,rr2,rr3,rr5; render = LatexTable(), file = joinpath(dirname(@__FILE__), "tables", "test3.tex",
                                            regression_statistics = [:nobs, :r2, :adjr2, :r2_within, :f, :p, :f_kp, :p_kp, :dof],
                                            align = :c)
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "test3.tex"), joinpath(dirname(@__FILE__), "tables", "test3_reference.tex"))
 
 
-regtable(lm1, lm2, gm1; renderSettings = latexOutput(joinpath(dirname(@__FILE__), "tables", "test4.tex")), regression_statistics = [:nobs, :r2])
+modelsummary(lm1, lm2, gm1; render = LatexTable(), file = joinpath(dirname(@__FILE__), "tables", "test4.tex",regression_statistics = [:nobs, :r2])
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "test4.tex"), joinpath(dirname(@__FILE__), "tables", "test4_reference.tex"))
 
-tab = regtable(lm1, lm2, lm3, gm1; renderSettings = latexOutput(joinpath(dirname(@__FILE__), "tables", "test6.tex")), regression_statistics = [:nobs, :r2], transform_labels = :ampersand)
-@test tab.vertical_gaps == [4]
+tab = modelsummary(lm1, lm2, lm3, gm1; render = LatexTable(), file = joinpath(dirname(@__FILE__), "tables", "test6.tex",regression_statistics = [:nobs, :r2], transform_labels = :ampersand)
+@test tab.hlines == [4]
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "test6.tex"), joinpath(dirname(@__FILE__), "tables", "test6_reference.tex"))
 
 
@@ -298,19 +298,19 @@ end
         @test se1 != se2  # Different estimators should give different results
     end
 
-    @testset "Integration with regtable" begin
-        # Test that regtable works with custom vcov
-        tab = regtable(lm1 + vcov(HC3()), asciiOutput(joinpath(dirname(@__FILE__), "tables", "reghc31.txt")))
+    @testset "Integration with modelsummary" begin
+        # Test that modelsummary works with custom vcov
+        tab = modelsummary(lm1 + vcov(HC3()), render = AsciiTable(), file = joinpath(dirname(@__FILE__), "tables", "reghc31.txt"))
         @test tab !== nothing
         # Just ensure it doesn't error - visual output testing is beyond scope
     end
 end
 
 # HTML Tables
-regtable(rr1,rr2,rr3,rr5; renderSettings = RegressionTables2.htmlOutput(joinpath(dirname(@__FILE__), "tables", "test1.html")), regression_statistics = [:nobs, :r2, :adjr2, :r2_within, :f, :p, :f_kp, :p_kp, :dof])
+modelsummary(rr1,rr2,rr3,rr5; render = HtmlTable(), file = joinpath(dirname(@__FILE__), "tables", "test1.html"), regression_statistics = [:nobs, :r2, :adjr2, :r2_within, :f, :p, :f_kp, :p_kp, :dof])
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "test1.html"), joinpath(dirname(@__FILE__), "tables", "test1_reference.html"))
 
-regtable(lm1, lm2, gm1; renderSettings = RegressionTables2.htmlOutput(joinpath(dirname(@__FILE__), "tables", "test2.html")), regression_statistics = [:nobs, :r2])
+modelsummary(lm1, lm2, gm1; render = HtmlTable(), file = joinpath(dirname(@__FILE__), "tables", "test2.html"), regression_statistics = [:nobs, :r2])
 @test checkfilesarethesame(joinpath(dirname(@__FILE__), "tables", "test2.html"), joinpath(dirname(@__FILE__), "tables", "test2_reference.html"))
 
 

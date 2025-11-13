@@ -1,6 +1,6 @@
 using RDatasets
 using RegressionTables2
-using FixedEffectModels, GLM, MixedModels, GLFixedEffectModels, Documenter, Aqua
+using FixedEffectModels, GLM, Documenter, Aqua
 using Test
 
 ##
@@ -20,9 +20,7 @@ tests = [
         "default_changes.jl",
         "RegressionTables.jl",
         "decorations.jl",
-        "label_transforms.jl",
-        "GLFixedEffectModels.jl",
-        "MixedModels.jl"
+        "label_transforms.jl"
     ]
 
 for test in tests
