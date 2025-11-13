@@ -24,7 +24,7 @@ This document describes the technical architecture of RegressionTables2.jl after
 ### Design Principles
 
 1. **Separation of Concerns**: Statistics computation is separate from rendering
-2. **Backward Compatibility**: Existing `regtable()` code works without changes
+2. **Backward Compatibility**: Existing `modelsummary()` code works without changes
 3. **MIME-aware Display**: Automatic backend selection based on display context
 4. **Extensibility**: Post-creation customization via mutating functions
 5. **PrettyTables.jl Integration**: Leverage existing ecosystem tools
@@ -33,7 +33,7 @@ This document describes the technical architecture of RegressionTables2.jl after
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    User Code (regtable)                      │
+│                    User Code (modelsummary)                      │
 └───────────────────────────┬─────────────────────────────────┘
                             │
                             ▼
@@ -138,7 +138,7 @@ mutable struct DataRow{T<:AbstractRenderType}
 end
 ```
 
-**Purpose**: Allow existing `regtable.jl` logic to construct rows as before.
+**Purpose**: Allow existing `modelsummary.jl` logic to construct rows as before.
 
 **Key Feature**: Supports multicolumn cells via `Pair` type (e.g., `"Group 1" => 2:4` spans columns 2-4).
 
@@ -248,7 +248,7 @@ end
 Users can force a specific backend:
 
 ```julia
-rt = regtable(model1, model2)
+rt = modelsummary(model1, model2)
 set_backend!(rt, :latex)  # Force LaTeX output everywhere
 ```
 
@@ -357,11 +357,11 @@ Example output:
 
 ### Table Creation
 
-#### `regtable()`
+#### `modelsummary()`
 
 **Signature**:
 ```julia
-regtable(
+modelsummary(
     rrs::RegressionModel...;
     render = AsciiTable(),
     keep = [],
@@ -388,7 +388,7 @@ data = DataFrame(x = randn(100), y = randn(100), z = randn(100))
 m1 = lm(@formula(y ~ x), data)
 m2 = lm(@formula(y ~ x + z), data)
 
-rt = regtable(m1, m2;
+rt = modelsummary(m1, m2;
     regression_statistics = [Nobs, R2, AdjR2],
     below_statistic = StdError,
     labels = Dict("x" => "Treatment", "z" => "Control")
@@ -409,7 +409,7 @@ Add a horizontal line after the specified row.
 
 **Example**:
 ```julia
-rt = regtable(m1, m2)
+rt = modelsummary(m1, m2)
 add_hline!(rt, 2)  # Add line after row 2
 add_hline!(rt, 5)  # Add line after row 5
 ```
@@ -443,7 +443,7 @@ Change alignment for a specific column.
 
 **Example**:
 ```julia
-rt = regtable(m1, m2)
+rt = modelsummary(m1, m2)
 set_alignment!(rt, 2, :c)           # Center column 2 (body)
 set_alignment!(rt, 3, :l; header=true)  # Left-align column 3 (header)
 ```
@@ -482,7 +482,7 @@ Force a specific rendering backend.
 
 **Example**:
 ```julia
-rt = regtable(m1, m2)
+rt = modelsummary(m1, m2)
 set_backend!(rt, :latex)  # Always render as LaTeX
 set_backend!(rt, nothing) # Restore auto-detection
 ```
@@ -499,7 +499,7 @@ Add arbitrary PrettyTables.jl options.
 
 **Example**:
 ```julia
-rt = regtable(m1, m2)
+rt = modelsummary(m1, m2)
 
 # Add a title
 merge_kwargs!(rt; title="Regression Results", title_alignment=:c)
@@ -521,7 +521,7 @@ merge_kwargs!(rt;
 All mutating functions return the modified table, allowing chaining:
 
 ```julia
-rt = regtable(m1, m2) |>
+rt = modelsummary(m1, m2) |>
     (rt -> add_hline!(rt, 2)) |>
     (rt -> set_alignment!(rt, 2, :c)) |>
     (rt -> set_backend!(rt, :latex)) |>
@@ -530,7 +530,7 @@ rt = regtable(m1, m2) |>
 
 Or more concisely:
 ```julia
-rt = regtable(m1, m2)
+rt = modelsummary(m1, m2)
 add_hline!(rt, 2)
 set_alignment!(rt, 2, :c)
 set_backend!(rt, :latex)
@@ -555,7 +555,7 @@ Write table to file with automatic backend detection.
 
 **Example**:
 ```julia
-rt = regtable(m1, m2)
+rt = modelsummary(m1, m2)
 
 # Automatic detection
 write("table.tex", rt)    # → LaTeX
@@ -572,7 +572,7 @@ write("output", rt)        # → LaTeX (ignores extension)
 `RegressionTable` implements `AbstractMatrix` interface for inspection:
 
 ```julia
-rt = regtable(m1, m2)
+rt = modelsummary(m1, m2)
 
 # Get dimensions
 size(rt)           # → (nrows, ncols)
@@ -702,7 +702,7 @@ using RegressionTables2, GLM, DataFrames
 
 data = DataFrame(x = randn(100), y = randn(100))
 model = lm(@formula(y ~ x), data)
-regtable(model)  # Works exactly as before
+modelsummary(model)  # Works exactly as before
 ```
 
 ### For Package Developers
@@ -724,7 +724,7 @@ This still works via compatibility layer! However, for new implementations:
 
 ```julia
 # Create RegressionTable normally
-rt = regtable(model)
+rt = modelsummary(model)
 
 # Customize with PrettyTables features
 merge_kwargs!(rt;
@@ -770,7 +770,7 @@ StatsAPI.coefnames(m::MyModel) = ...
 
 1. **Post-creation customization**:
 ```julia
-rt = regtable(model)
+rt = modelsummary(model)
 add_hline!(rt, 3)
 set_backend!(rt, :html)
 ```
@@ -786,7 +786,7 @@ merge_kwargs!(rt;
 3. **Automatic MIME detection**:
 ```julia
 # No need to specify render type!
-rt = regtable(model)  # Auto-detects context
+rt = modelsummary(model)  # Auto-detects context
 ```
 
 ---
