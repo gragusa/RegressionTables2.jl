@@ -1,245 +1,453 @@
-
-
 """
-    mutable struct RegressionTable{T<:AbstractRenderType} <: AbstractMatrix{String}
-        data::Vector{DataRow{T}}
-        align::String
-        render::T
-        breaks::Vector{Int}
-        colwidths::Vector{Int}
-        vertical_gaps::Vector{Int}
+    mutable struct RegressionTable
+        data::Matrix{Any}
+        header::Vector{Vector{String}}
+        header_align::Vector{Symbol}
+        body_align::Vector{Symbol}
+        hlines::Vector{Int}
+        formatters::Vector
+        highlighters::Vector
+        backend::Union{Symbol, Nothing}
+        pretty_kwargs::Dict{Symbol, Any}
     end
 
-    RegressionTable(header::Vector, body::Matrix, args...; vargs...)
-    RegressionTable(
-        header::Matrix,
-        body::Matrix,
-        render::T=AsciiTable();
-        breaks=[size(header, 1)],
-        align='l' * 'r' ^ (size(header, 2) - 1),
-        colwidths=fill(0, size(header, 2)),
-        header_align='l' * 'c' ^ (size(header, 2) - 1),
-        extralines::Vector = DataRow[]
-    ) where T<:AbstractRenderType
+A container for regression table data that uses PrettyTables.jl for rendering.
 
-The general container. This provides some general information about the table. The [`DataRow`](@ref) handles the main printing,
-but this provides other necessary information, especially the `break` field, which is used to determine where to put the
-lines (e.g., `\\midrule` in LaTeX).
-- `data`: A vector of [`DataRow`](@ref) objects.
-- `align`: A string of characters, one for each column, indicating the alignment of the column. The characters are
-    `l` for left, `c` for center, and `r` for right.
-- `render`: The render type of the table. This must be the same as the render type of the [`DataRow`](@ref) objects and is used for convenience.
-- `breaks`: A vector of integers, indicating where to put the lines (e.g., `\\midrule` in LaTeX). When displayed, the break will be placed after
-   the line number is printed (breaks = [5] will print a break after the 5th line is printed).
-- `colwidths`: A vector of integers, one for each column, indicating the width of the column. Can calculate the widths
-    automatically using [`calc_widths`](@ref) and update them with [`update_widths!`](@ref).
-- `vertical_gaps`: A vector of integers, indicating where to put vertical gaps in the table. These are places where two underlined cells
-    are not connected. This is necessary for Excel integration.
+# Fields
+- `data`: Matrix of table data (both header and body combined)
+- `header`: Vector of header rows (for multi-level headers)
+- `header_align`: Alignment for header columns (:l, :c, :r)
+- `body_align`: Alignment for body columns (:l, :c, :r)
+- `hlines`: Positions of horizontal lines (row indices)
+- `formatters`: Vector of PrettyTables formatters
+- `highlighters`: Vector of PrettyTables highlighters
+- `backend`: Rendering backend (:text, :html, :latex, or nothing for auto-detection)
+- `pretty_kwargs`: Additional keyword arguments to pass to PrettyTables.pretty_table
 
-The `RegressionTable` is a subtype of the `AbstractMatrix{String}` type (though this functionality is somewhat experimental).
-Importantly, this implements `getindex` and `setindex!`, which means individual elements of the table can be modified after
-its construction. See examples below. It also allows a `RegressionTable` to be passed to a function that expects a matrix,
-for example, exporting to a `DataFrame` [DataFrames.jl](https://github.com/JuliaData/DataFrames.jl) would be `DataFrame(Matrix(tab), :auto)`.
-Note that this will not keep multicolumn, unerlines, etc. information, but could be useful for exporting to other formats.
+# Display
+The table automatically selects the appropriate backend based on MIME type:
+- Terminal/REPL: Markdown backend (text)
+- Jupyter/HTML context: HTML backend
+- LaTeX context: LaTeX backend
 
-This type also has two convenience constructors which might be helpful if using this package to print summary statistics.
+You can override the backend using `set_backend!` or by setting the `backend` field directly.
 
-## Example
-```jldoctest; setup=:(using RegressionTables, RDatasets, DataFrames)
-julia> df = RDatasets.dataset("datasets", "iris");
+# Customization
+After creating a table, you can customize it using:
+- `add_hline!`: Add horizontal lines
+- `set_alignment!`: Change column alignment
+- `add_formatter!`: Add custom formatters
+- `set_backend!`: Change the rendering backend
+- `merge_kwargs!`: Add arbitrary PrettyTables.jl options
 
-julia> df = describe(df, :mean, :std, :q25, :median, :q75; cols=["SepalLength", "SepalWidth", "PetalLength", "PetalWidth"]);
+# Examples
+```julia
+julia> rt = regtable(model1, model2)  # Creates a RegressionTable
 
-julia> t = RegressionTables.RegressionTable(names(df), Matrix(df))
- 
-----------------------------------------------------
-variable       mean    std     q25    median    q75
-----------------------------------------------------
-SepalLength   5.843   0.828   5.100    5.800   6.400
-SepalWidth    3.057   0.436   2.800    3.000   3.300
-PetalLength   3.758   1.765   1.600    4.350   5.100
-PetalWidth    1.199   0.762   0.300    1.300   1.800
-----------------------------------------------------
+julia> add_hline!(rt, 5)  # Add horizontal line after row 5
 
-julia> t[1, 2] = "Mean of Variable";
+julia> set_backend!(rt, :latex)  # Force LaTeX backend
 
-julia> t[2, 3] = 0;
-
-julia> RegressionTables.update_widths!(t); # necessary if a column gets longer
-
-julia> t
- 
----------------------------------------------------------------
-variable      Mean of Variable    std     q25    median    q75
----------------------------------------------------------------
-SepalLength              5.843       0   5.100    5.800   6.400
-SepalWidth               3.057   0.436   2.800    3.000   3.300
-PetalLength              3.758   1.765   1.600    4.350   5.100
-PetalWidth               1.199   0.762   0.300    1.300   1.800
----------------------------------------------------------------
+julia> merge_kwargs!(rt; title="My Regression Results")  # Add PrettyTables options
 ```
 """
-mutable struct RegressionTable{T<:AbstractRenderType} <: AbstractMatrix{String}
-    data::Vector{DataRow{T}}
-    align::String
-    render::T
-    breaks::Vector{Int}
-    colwidths::Vector{Int}
-    vertical_gaps::Vector{Int}# necessary for future Excel integration
+mutable struct RegressionTable
+    data::Matrix{Any}
+    header::Vector{Vector{String}}
+    header_align::Vector{Symbol}
+    body_align::Vector{Symbol}
+    hlines::Vector{Int}
+    formatters::Vector
+    highlighters::Vector
+    backend::Union{Symbol, Nothing}
+    pretty_kwargs::Dict{Symbol, Any}
+
     function RegressionTable(
-        data::Vector{DataRow{T}},
-        align::String,
-        breaks=[length(data)],
-        colwidths::Vector{Int}=zeros(Int, length(data[1])),
-        vertical_gaps::Union{Nothing, Vector{Int}}=nothing
-    ) where {T<:AbstractRenderType}
-        if all(colwidths .== 0)
-            colwidths = calc_widths(data)
-        end
-        update_widths!.(data, Ref(colwidths))
-        if vertical_gaps === nothing
-            vertical_gaps = find_vertical_gaps(data)
-        end
-        @assert all(length.(data) .== length(colwidths)) && length(colwidths) == length(align) "Not all the correct length"
-        @assert length(data) .>= maximum(breaks) "Breaks must be less than the number of rows"
-        new{T}(data,align, T(), breaks, colwidths, vertical_gaps)
+        data::Matrix{Any},
+        header::Vector{Vector{String}},
+        header_align::Vector{Symbol},
+        body_align::Vector{Symbol};
+        hlines::Vector{Int}=Int[],
+        formatters::Vector=[],
+        highlighters::Vector=[],
+        backend::Union{Symbol, Nothing}=nothing,
+        pretty_kwargs::Dict{Symbol, Any}=Dict{Symbol, Any}()
+    )
+        new(data, header, header_align, body_align, hlines, formatters, highlighters, backend, pretty_kwargs)
     end
 end
 
-"""
-    find_vertical_gaps(data::Vector{DataRow{T}}) where T
+# Convenience constructor for simple matrices
+function RegressionTable(
+    header::Vector{String},
+    body::Matrix{Any};
+    header_align::Union{Vector{Symbol}, Nothing}=nothing,
+    body_align::Union{Vector{Symbol}, Nothing}=nothing,
+    kwargs...
+)
+    ncols = length(header)
+    @assert size(body, 2) == ncols "Header and body must have same number of columns"
 
-Finds locations in a vector of `DataRow` objects where there are vertical gaps. A "vertical gap" is a place
-where two underlined cells are not connected. If there is a gap, then there needs to be a space between
-the current column and the next column. This makes it unnecessary to have a final vertical gap since
-the table ends there.
-"""
-function find_vertical_gaps(data::Vector{DataRow{T}}) where T
-    out = Set{Int}()
-    for row in data
-        i = 0
-        for (j, x) in enumerate(row.data)
-            if isa(x, Pair)
-                i += length(last(x))
-            else
-                i += 1
-            end
-            if row.print_underlines[j] && i < length(row)
-                push!(out, i)
-            end
-        end
+    # Default alignments: left for first column, right for others
+    if header_align === nothing
+        header_align = [:l; fill(:c, ncols - 1)]
     end
-    sort(collect(out))
-end
+    if body_align === nothing
+        body_align = [:l; fill(:r, ncols - 1)]
+    end
 
-Base.size(tab::RegressionTable) = (length(data(tab)), length(data(tab)[1]))
-Base.size(tab::RegressionTable, i::Int) = size(tab)[i]
-Base.getindex(tab::RegressionTable, i::Int, j::Int) = data(tab)[i][j]
-Base.setindex!(tab::RegressionTable, val, i::Int, j::Int) = data(tab)[i][j] = val
-Base.getindex(tab::RegressionTable, i::Int) = data(tab)[i]
-function Base.setindex!(tab::RegressionTable{T}, val::DataRow, i::Int) where {T<:AbstractRenderType}
-    data(tab)[i] = T(val)
-    update_widths!(tab)
-    tab
-end
-
-Base.setindex!(tab::RegressionTable, val::AbstractVector, i::Int) = setindex!(tab, DataRow(val), i)
-function Base.insert!(tab::RegressionTable{T}, i::Int, row:: DataRow) where {T<:AbstractRenderType}
-    @assert length(row) == length(data(tab)[2]) "Row is not the correct length"
-    x = T(row)
-    insert!(data(tab), i, x)
-    update_widths!(tab)
-    tab
-end
-
-Base.insert!(tab::RegressionTable, i::Int, row::AbstractVector) = insert!(tab, i, DataRow(row))
-
-function update_widths!(tab::RegressionTable)
-    colwidths = calc_widths(data(tab))
-    update_widths!.(data(tab), Ref(colwidths))
-    tab.colwidths = colwidths
-    tab
-end
-
-
-data(tab::RegressionTable) = tab.data
-align(tab::RegressionTable) = tab.align
-colwidths(tab::RegressionTable) = tab.colwidths
-
-function (::Type{T})(tab::RegressionTable) where T<:AbstractRenderType
     RegressionTable(
-        T.(data(tab)),
-        align(tab),
-        tab.breaks,
+        body,
+        [header],
+        header_align,
+        body_align;
+        kwargs...
     )
 end
 
-RegressionTable(header::Vector, body::Matrix, args...; vargs...) = RegressionTable(reshape(header, 1, :), body, args...; vargs...)
-function RegressionTable(
-    header::Matrix,
-    body::Matrix,
-    render::T=AsciiTable();
-    breaks=[size(header, 1)],
-    align='l' * 'r' ^ (size(header, 2) - 1),
-    colwidths=fill(0, size(header, 2)),
-    header_align='l' * 'c' ^ (size(header, 2) - 1),
-    extralines::Vector = DataRow[]
-) where T<:AbstractRenderType
-    @assert size(body, 2) == size(header, 2) == length(colwidths) "Incorrect number of columns in table compared to header"
-    @assert size(body, 1) > 0 && size(header, 1) > 0 "Table must contain at least one body, and at least one row in the first body."
-    out = Vector{DataRow{T}}()
-    for i in 1:size(header, 1)
-        push!(
-            out,
-            DataRow(
-                header[i, :],
-                header_align,
-                colwidths,
-                fill(i < size(header, 1), size(header, 2)),
-                T();# if header is last row, don't print underlines
-                combine_equals=i < size(header, 1)
-            )
-        )
-    end
-    for i in 1:size(body, 1)
-        push!(
-            out,
-            DataRow(
-                body[i, :],
-                align,
-                colwidths,
-                fill(false, size(header, 2)),
-                T()
-            )
-        )
-    end
-    for x in extralines
-        push!(out, T(DataRow(x)))
-    end
-    return RegressionTable(out, align, breaks, colwidths)
-end
-# render a whole table
-function Base.print(io::IO, tab::RegressionTable)
+"""
+    add_hline!(rt::RegressionTable, position::Int)
 
-    println(io, tablestart(tab))
-    println(io, toprule(tab))
-    for (i, row) in enumerate(data(tab))
-        println(io, row)
-        if i ∈ tab.breaks
-            println(io, midrule(tab))
+Add a horizontal line after the specified row position.
+Row numbering includes header rows.
+"""
+function add_hline!(rt::RegressionTable, position::Int)
+    if position ∉ rt.hlines
+        push!(rt.hlines, position)
+        sort!(rt.hlines)
+    end
+    rt
+end
+
+"""
+    remove_hline!(rt::RegressionTable, position::Int)
+
+Remove a horizontal line at the specified row position.
+"""
+function remove_hline!(rt::RegressionTable, position::Int)
+    filter!(x -> x != position, rt.hlines)
+    rt
+end
+
+"""
+    set_alignment!(rt::RegressionTable, col::Int, align::Symbol; header::Bool=false)
+
+Set the alignment for a specific column.
+Set `header=true` to change header alignment instead of body alignment.
+"""
+function set_alignment!(rt::RegressionTable, col::Int, align::Symbol; header::Bool=false)
+    @assert align in (:l, :c, :r) "Alignment must be :l, :c, or :r"
+    if header
+        rt.header_align[col] = align
+    else
+        rt.body_align[col] = align
+    end
+    rt
+end
+
+"""
+    add_formatter!(rt::RegressionTable, f)
+
+Add a PrettyTables formatter to the table.
+See PrettyTables.jl documentation for formatter syntax.
+"""
+function add_formatter!(rt::RegressionTable, f)
+    push!(rt.formatters, f)
+    rt
+end
+
+"""
+    set_backend!(rt::RegressionTable, backend::Symbol)
+
+Set the rendering backend.
+Valid backends: :text, :html, :latex, or :auto (nothing) for automatic detection.
+"""
+function set_backend!(rt::RegressionTable, backend::Union{Symbol, Nothing})
+    if backend !== nothing
+        @assert backend in (:text, :html, :latex) "Backend must be :text, :html, :latex, or nothing"
+    end
+    rt.backend = backend
+    rt
+end
+
+"""
+    merge_kwargs!(rt::RegressionTable; kwargs...)
+
+Merge additional keyword arguments to pass to PrettyTables.pretty_table.
+This allows you to use any PrettyTables.jl option for customization.
+
+# Examples
+```julia
+merge_kwargs!(rt; title="My Results", title_alignment=:c)
+merge_kwargs!(rt; vcrop_mode=:middle, crop_num_lines_at_end=10)
+```
+"""
+function merge_kwargs!(rt::RegressionTable; kwargs...)
+    merge!(rt.pretty_kwargs, Dict{Symbol, Any}(kwargs))
+    rt
+end
+
+# Make RegressionTable act like a matrix for compatibility
+Base.size(rt::RegressionTable) = size(rt.data)
+Base.size(rt::RegressionTable, i::Int) = size(rt.data, i)
+Base.getindex(rt::RegressionTable, i::Int, j::Int) = rt.data[i, j]
+function Base.setindex!(rt::RegressionTable, val, i::Int, j::Int)
+    rt.data[i, j] = val
+    rt
+end
+
+# Helper functions to convert alignment symbols to PrettyTables format
+function _pt_alignment(align::Vector{Symbol})
+    return align
+end
+
+function _convert_alignment_char(c::Char)
+    c == 'l' ? :l : (c == 'c' ? :c : :r)
+end
+
+function _convert_alignment_string(s::String)
+    [_convert_alignment_char(c) for c in s]
+end
+
+# Main printing function using PrettyTables
+"""
+    _render_table(io::IO, rt::RegressionTable, backend::Symbol)
+
+Internal function to render the table using PrettyTables.jl.
+"""
+function _render_table(io::IO, rt::RegressionTable, backend::Symbol)
+    # Prepare the full data matrix (header + body)
+    nheader = length(rt.header)
+
+    # Build alignment vector (header uses header_align, body uses body_align)
+    alignment = rt.body_align
+
+    # Adjust hlines to account for PrettyTables' header handling
+    # PrettyTables puts an automatic line after headers, so we need to adjust our hlines
+    hlines_adjusted = copy(rt.hlines)
+
+    # PrettyTables configuration based on backend
+    kwargs = copy(rt.pretty_kwargs)
+
+    if backend == :text
+        kwargs[:backend] = Val(:text)
+        kwargs[:tf] = PrettyTables.tf_markdown
+        # Add horizontal lines
+        if !isempty(hlines_adjusted)
+            kwargs[:body_hlines] = hlines_adjusted
+        end
+        kwargs[:alignment] = alignment
+        kwargs[:header_alignment] = rt.header_align
+
+    elseif backend == :html
+        kwargs[:backend] = Val(:html)
+        kwargs[:tf] = PrettyTables.tf_html_minimalist
+        kwargs[:alignment] = alignment
+        kwargs[:header_alignment] = rt.header_align
+        # HTML doesn't have the same hlines concept, but we can use CSS classes
+
+    elseif backend == :latex
+        kwargs[:backend] = Val(:latex)
+        kwargs[:tf] = PrettyTables.tf_latex_booktabs
+        # Add horizontal lines
+        if !isempty(hlines_adjusted)
+            kwargs[:body_hlines] = hlines_adjusted
+        end
+        kwargs[:alignment] = alignment
+        kwargs[:header_alignment] = rt.header_align
+    end
+
+    # Add formatters if any
+    if !isempty(rt.formatters)
+        kwargs[:formatters] = tuple(rt.formatters...)
+    end
+
+    # Add highlighters if any
+    if !isempty(rt.highlighters)
+        kwargs[:highlighters] = tuple(rt.highlighters...)
+    end
+
+    # Render using PrettyTables
+    PrettyTables.pretty_table(
+        io,
+        rt.data,
+        header=rt.header;
+        kwargs...
+    )
+end
+
+# MIME-based display methods
+function Base.show(io::IO, ::MIME"text/plain", rt::RegressionTable)
+    backend = rt.backend === nothing ? :text : rt.backend
+    _render_table(io, rt, backend)
+end
+
+function Base.show(io::IO, ::MIME"text/html", rt::RegressionTable)
+    backend = rt.backend === nothing ? :html : rt.backend
+    _render_table(io, rt, backend)
+end
+
+function Base.show(io::IO, ::MIME"text/latex", rt::RegressionTable)
+    backend = rt.backend === nothing ? :latex : rt.backend
+    _render_table(io, rt, backend)
+end
+
+# Default show method (uses text/plain)
+function Base.show(io::IO, rt::RegressionTable)
+    show(io, MIME("text/plain"), rt)
+end
+
+# Write to file
+function Base.write(filename::String, rt::RegressionTable)
+    open(filename, "w") do io
+        # Detect backend from file extension
+        backend = rt.backend
+        if backend === nothing
+            ext = lowercase(splitext(filename)[2])
+            if ext == ".tex"
+                backend = :latex
+            elseif ext in (".html", ".htm")
+                backend = :html
+            else
+                backend = :text
+            end
+        end
+        _render_table(io, rt, backend)
+    end
+end
+
+#=============================================================================
+Compatibility constructor for old DataRow-based system
+=============================================================================#
+
+"""
+    RegressionTable(data::Vector{DataRow{T}}, align::String, breaks::Vector{Int}) where {T<:AbstractRenderType}
+
+Compatibility constructor that converts old DataRow-based tables to new PrettyTables-based format.
+This allows existing regtable() code to work without modification.
+"""
+function RegressionTable(
+    data::Vector{DataRow{T}},
+    align::String,
+    breaks::Vector{Int}=Int[],
+    colwidths::Vector{Int}=Int[]
+) where {T<:AbstractRenderType}
+    # Convert DataRow vector to matrix format
+    nrows = length(data)
+    if nrows == 0
+        error("Cannot create table from empty DataRow vector")
+    end
+
+    # Determine table structure
+    # First rows with underlines are headers, rest are body
+    header_rows = Int[]
+    for (i, row) in enumerate(data)
+        if any(row.print_underlines)
+            push!(header_rows, i)
+        else
+            break  # Once we hit a row without underlines, we're in the body
         end
     end
-    println(io, bottomrule(tab))
-    # print bottomrule
-    println(io, tableend(tab))
-end
-Base.show(io::IO, tab::RegressionTable) = print(io, tab)
-Base.show(io::IO, x::MIME{Symbol("text/plain")}, tab::RegressionTable) = show(io, tab) # ignore mime type since a display type is already specified
-Base.display(tab::RegressionTable) = show(tab)
-Base.display(v::MIME, tab::RegressionTable) = show(tab)
 
-function Base.write(x::String, tab::RegressionTable)
-    open(x, "w") do io
-        print(io, tab)
+    nheader = length(header_rows)
+    if nheader == 0
+        # No header rows, treat first row as header
+        nheader = 1
+        header_rows = [1]
     end
+
+    # Determine number of columns from first row
+    # Handle multicolumn cells (Pairs)
+    function count_cols(row::DataRow)
+        n = 0
+        for item in row.data
+            if isa(item, Pair)
+                n += length(last(item))
+            else
+                n += 1
+            end
+        end
+        n
+    end
+
+    ncols = count_cols(data[1])
+
+    # Convert rows to flat vectors (expanding multicolumn cells)
+    function expand_row(row::DataRow, ncols::Int)
+        result = fill("", ncols)
+        col = 1
+        for item in row.data
+            if isa(item, Pair)
+                # Multicolumn cell
+                value = repr(row.render, first(item))
+                span = length(last(item))
+                # Put value in first column of span
+                result[col] = value
+                # Mark other columns as part of multicolumn (we'll handle in PrettyTables)
+                for j in 1:(span-1)
+                    result[col + j] = ""  # Empty for now, PrettyTables will handle merging
+                end
+                col += span
+            else
+                result[col] = repr(row.render, item)
+                col += 1
+            end
+        end
+        result
+    end
+
+    # Build header matrix
+    header_matrix = Matrix{String}(undef, nheader, ncols)
+    for (i, row_idx) in enumerate(header_rows)
+        header_matrix[i, :] = expand_row(data[row_idx], ncols)
+    end
+
+    # Build body matrix
+    body_start = nheader + 1
+    nbody = nrows - nheader
+    body_matrix = Matrix{Any}(undef, nbody, ncols)
+    for i in 1:nbody
+        body_matrix[i, :] = expand_row(data[body_start + i - 1], ncols)
+    end
+
+    # Convert alignment string to symbol vector
+    align_vec = [c == 'l' ? :l : (c == 'c' ? :c : :r) for c in align]
+
+    # Ensure we have alignment for all columns
+    while length(align_vec) < ncols
+        push!(align_vec, :r)
+    end
+
+    # Build header as vector of vectors (one per header row)
+    header_vecs = [String[header_matrix[i, j] for j in 1:ncols] for i in 1:nheader]
+
+    # Create alignment vectors
+    header_align = fill(:c, ncols)
+    header_align[1] = :l  # First column left-aligned
+
+    body_align = copy(align_vec[1:ncols])
+
+    # Adjust breaks (they're 1-indexed in old system, need to subtract header rows)
+    adjusted_breaks = [b - nheader for b in breaks if b > nheader]
+
+    # Determine backend from render type
+    backend = if T <: AbstractLatex
+        :latex
+    elseif T <: AbstractHtml
+        :html
+    else
+        nothing  # Auto-detect
+    end
+
+    # Create new RegressionTable
+    rt = RegressionTable(
+        body_matrix,
+        header_vecs,
+        header_align,
+        body_align;
+        hlines=adjusted_breaks,
+        backend=backend
+    )
+
+    return rt
 end
