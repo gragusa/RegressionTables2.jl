@@ -1,5 +1,5 @@
-# Compatibility layer for old rendering system
-# This allows the existing regtable.jl logic to work while we convert output to PrettyTables
+# Render type system for table construction
+# This allows flexible table construction using different render types before converting to PrettyTables
 
 """
     abstract type AbstractRenderType end

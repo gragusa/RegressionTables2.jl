@@ -39,11 +39,14 @@ module RegressionTables2
     ##
     ##############################################################################
 
-    export regtable, RegressionTable
+    export modelsummary, RegressionTable
     export Nobs, R2, R2McFadden, R2CoxSnell, R2Nagelkerke,
     R2Deviance, AdjR2, AdjR2McFadden, AdjR2Deviance, DOF, LogLikelihood, AIC, BIC, AICC,
     FStat, FStatPValue, FStatIV, FStatIVPValue, R2Within, PseudoR2, AdjPseudoR2
     export TStat, StdError, ConfInt, RegressionType
+
+    # Type system exports
+    export AbstractRenderType, AbstractRegressionStatistic, AsciiTable, LatexTable, HtmlTable
 
     # Customization functions
     export add_hline!, remove_hline!, set_alignment!, add_formatter!, set_backend!, merge_kwargs!
@@ -58,13 +61,13 @@ module RegressionTables2
     ##
     ##############################################################################
 
-    # compatibility layer for old rendering system
-    include("compat/render_compat.jl")
-
-    # main types
+    # main types (needed by render_compat)
     include("RegressionStatistics.jl")
     include("coefnames.jl")
     include("regressionResults.jl")
+
+    # compatibility layer for rendering system
+    include("compat/render_compat.jl")
 
     # main settings
     include("decorations/default_decorations.jl")

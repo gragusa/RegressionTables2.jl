@@ -233,18 +233,13 @@ default_stat_below(render::AbstractRenderType) = true
 Defaults to `AsciiTable()`, any concrete [`AbstractRenderType`](@ref) is allowed
 """
 default_render(rrs) = AsciiTable()
-default_render(renderSettings::Nothing, rrs) = default_render(rrs)
-default_render(renderSettings::AbstractRenderType, rrs) = renderSettings
-default_render(renderSettings::Tuple{<:AbstractRenderType, String}, rrs) = renderSettings[1]
 
 """
-    default_file(render::AbstractRenderType, renderSettings::Tuple{<:AbstractRenderType, String}, rrs)
+    default_file(render::AbstractRenderType, rrs)
 
 Defaults to `nothing`, which means no file is saved.
 """
 default_file(render::AbstractRenderType, rrs) = nothing
-default_file(render::AbstractRenderType, renderSettings, rrs) = default_file(render, rrs)
-default_file(render::AbstractRenderType, renderSettings::Tuple{<:AbstractRenderType, String}, rrs) = renderSettings[2]
 
 """
     default_print_fe_suffix(render::AbstractRenderType)
@@ -324,10 +319,6 @@ values instead of the original values.
 """
 default_use_relabeled_values(render::AbstractRenderType, rrs) = true
 
-asciiOutput(file::String) = (AsciiTable(), file)
-latexOutput(file::String) = (LatexTable(), file)
-htmlOutput(file::String) = (HtmlTable(), file)
-
 #region
 """
 Produces a publication-quality regression table, similar to Stata's `esttab` and R's `stargazer`.
@@ -361,19 +352,18 @@ Produces a publication-quality regression table, similar to Stata's `esttab` and
 ### Details
 A typical use is to pass a number of `FixedEffectModel`s to the function, along with how it should be rendered (with `render` argument):
 ```julia
-regtable(regressionResult1, regressionResult2; render = AsciiTable())
+modelsummary(regressionResult1, regressionResult2; render = AsciiTable())
 ```
 
 Pass a string to the `file` argument to create or overwrite a file. For example, using LaTeX output,
 ```julia
-regtable(regressionResult1, regressionResult2; render = LatexTable(), file="myoutfile.tex")
+modelsummary(regressionResult1, regressionResult2; render = LatexTable(), file="myoutfile.tex")
 ```
 See the full argument list for details.
 """
-function regtable(
+function modelsummary(
     rrs::RegressionModel...;
-    renderSettings = nothing,
-    render::T = default_render(renderSettings, rrs),
+    render::T = default_render(rrs),
     keep::Vector = default_keep(render, rrs), # allows :last and :end as symbol
     drop::Vector = default_drop(render, rrs), # allows :last and :end as symbol
     order::Vector = default_order(render, rrs), # allows :last and :end as symbol
@@ -389,7 +379,7 @@ function regtable(
     number_regressions::Bool = default_number_regressions(render, rrs), # decoration for the column number, does not display by default if only 1 regression
     print_estimator_section = default_print_estimator(render, rrs),
     print_fe_section = default_print_fe(render, rrs), # defaults to true but only matters if fixed effects are present
-    file = default_file(render, renderSettings, rrs),
+    file = default_file(render, rrs),
     transform_labels::Union{Dict,Symbol} = default_transform_labels(render, rrs),
     extralines = default_extralines(render, rrs),
     section_order = default_section_order(render),
@@ -405,7 +395,6 @@ function regtable(
     below_decoration::Union{Nothing, Function}=nothing,
     number_regressions_decoration::Union{Nothing, Function}=nothing,
     estim_decoration::Union{Nothing, Function}=nothing,
-    regressors=nothing,
     use_relabeled_values=default_use_relabeled_values(render, rrs),
     confint_level=default_confint_level(render, rrs),
     extra_space::Bool=false,
@@ -424,21 +413,6 @@ function regtable(
     end
     for (i, rr) in enumerate(rrs)
         standardize_coef[i] = standardize_coef[i] && can_standardize(rr)
-    end
-    if regressors !== nothing
-        @warn("regressors is deprecated. Use keep instead.")
-        base_names = union(coefnames.(rrs)...)
-        if length(keep) == 0
-            keep = value_pos.(Ref(base_names), regressors)
-        end
-    end
-    if renderSettings !== nothing
-        x = if file === nothing
-            "renderSettings is deprecated. Specify render type with render=$render"
-        else
-            "renderSettings is deprecated. Specify render type with render=$render and file with file=$file"
-        end
-        @warn(x)
     end
     if isa(below_statistic, Symbol)
         if below_statistic == :se
@@ -748,10 +722,10 @@ of the pairs and the rest of the matrix is the last value of the pairs organized
    be printed with a suffix. Defaults to `true`, which means the fixed effects
    will be printed as `\$X Fixed Effects`. If `false`, the fixed effects will
    just be the fixed effect (`\$X`).
-- `labels` is the labels from the main `regtable`, used to change the names of
+- `labels` is the labels from the main `modelsummary`, used to change the names of
    the names.
-- `transform_labels` is the transform_labels from the main `regtable`.
-- `kwargs` are any other `kwargs` passed to `regtable`, allowing for flexible
+- `transform_labels` is the transform_labels from the main `modelsummary`.
+- `kwargs` are any other `kwargs` passed to `modelsummary`, allowing for flexible
    arguments for truly custom type naming.
 """
 function combine_other_statistics(

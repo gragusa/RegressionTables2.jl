@@ -42,7 +42,7 @@ After creating a table, you can customize it using:
 
 # Examples
 ```julia
-julia> rt = regtable(model1, model2)  # Creates a RegressionTable
+julia> rt = modelsummary(model1, model2)  # Creates a RegressionTable
 
 julia> add_hline!(rt, 5)  # Add horizontal line after row 5
 
@@ -323,8 +323,8 @@ Compatibility constructor for old DataRow-based system
 """
     RegressionTable(data::Vector{DataRow{T}}, align::String, breaks::Vector{Int}) where {T<:AbstractRenderType}
 
-Compatibility constructor that converts old DataRow-based tables to new PrettyTables-based format.
-This allows existing regtable() code to work without modification.
+Constructor that converts DataRow-based tables to PrettyTables-based format.
+This allows modelsummary() to build tables using the DataRow system internally.
 """
 function RegressionTable(
     data::Vector{DataRow{T}},
