@@ -25,7 +25,7 @@ RegressionTables2GLMExt = "GLM"
 
 [compat]
 Aqua = "0.8"
-CovarianceMatrices = "0.22"
+CovarianceMatrices = "0.22, 0.30"
 Distributions = "0.25"
 FixedEffectModels = "1.9"
 Format = "1.3"
